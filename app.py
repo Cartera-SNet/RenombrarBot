@@ -12,7 +12,7 @@ import boto3
 import requests
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from flask import Flask, render_template, request, jsonify, Response, send_file
+from flask import Flask, render_template, request, jsonify, Response, send_file, stream_with_context
 
 app = Flask(__name__)
 
@@ -325,8 +325,12 @@ def run_bot(items: list):
         used.add(new)
         rename_map[root] = new
 
+    # ── Crear ZIP en memoria (sin loguear cada archivo) ──
     buf = io.BytesIO()
     ok  = 0
+    ok_list  = []   # acumular para loguear en lote
+    err_list = []
+
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zout:
         for path, data in sorted(items, key=lambda x: x[0]):
             root     = path.split('/')[0]
@@ -334,13 +338,23 @@ def run_bot(items: list):
             new_path = new_root + path[len(root):]
             try:
                 zout.writestr(new_path, data)
-                log(f"  + {new_path}", "ok")
+                ok_list.append(new_path)
                 ok += 1
             except Exception as e:
-                log(f"  ERR {new_path}: {e}", "error")
+                err_list.append((new_path, str(e)))
 
     buf.seek(0)
     last_zip_bytes = buf.read()
+
+    # ── Loguear resultado del ZIP en lote (máx 20 líneas) ──
+    if ok_list:
+        shown = ok_list[:20]
+        for p in shown:
+            log(f"  + {p}", "ok")
+        if len(ok_list) > 20:
+            log(f"  ... y {len(ok_list) - 20} archivos más", "ok")
+    for path, err in err_list:
+        log(f"  ERR {path}: {err}", "error")
 
     # ── Upload result ZIP to Backblaze ──
     client = get_b2_client()
