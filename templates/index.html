@@ -448,13 +448,17 @@ body {
           ondragover="doDrag(event,'over')" ondragleave="doDrag(event,'leave')" ondrop="doDrag(event,'drop')">
           <i class="fas fa-cloud-upload-alt"></i>
           <p>Arrastrá carpetas o ZIPs aquí</p>
-          <small>Arrastrá directo — sin diálogos de confirmación</small>
+          <small>Carpetas y ZIPs — sin diálogos de confirmación</small>
         </div>
 
         <!-- Botones agregar -->
-        <div class="add-row">
+        <div class="add-row" style="grid-template-columns:1fr 1fr">
+          <label class="btn-add" title="Arrastrá la carpeta al área de arriba para evitar el diálogo del browser">
+            <i class="fas fa-folder"></i> Carpeta
+            <input type="file" id="folderInput" webkitdirectory class="hidden" style="display:none">
+          </label>
           <label class="btn-add">
-            <i class="fas fa-file-zipper"></i> Agregar ZIP(s)
+            <i class="fas fa-file-zipper"></i> ZIP(s)
             <input type="file" id="zipInput" multiple accept=".zip" class="hidden" style="display:none">
           </label>
         </div>
@@ -729,6 +733,13 @@ async function handleDrop(e) {
 }
 
 /* ── Inputs ──────────────────────────────────────────── */
+document.getElementById('folderInput').addEventListener('change', function () {
+  if (!this.files.length) return;
+  for (const f of this.files) filesData.push({ path: f.webkitRelativePath || f.name, file: f });
+  render(); logUI(`Carpeta agregada (${this.files.length} archivos)`, 'ok');
+  this.value = '';
+});
+
 document.getElementById('zipInput').addEventListener('change', function () {
   let n = 0;
   for (const f of this.files) {
