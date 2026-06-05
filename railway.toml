@@ -3,10 +3,8 @@
   dockerfilePath = "Dockerfile"
 
 [deploy]
-  num_replicas = 1
-  restart_policy_type = "ON_FAILURE"
-  restart_policy_max_retries = 3
-
-[deploy.healthcheck]
-  path = "/"
-  port = 5000
+  numReplicas = 1
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyMaxRetries = 3
+  healthcheckPath = "/health"
+  healthcheckTimeout = 10

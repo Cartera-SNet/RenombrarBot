@@ -549,27 +549,49 @@ body {
 <div id="toastBox"></div>
 
 <script>
-let filesData = [];
-let evtSource = null;
-let isUploading = false;
-let jobId = null;
+/* ═══════════════════════════════════════════════════════════
+   RenomBot · SIS — Frontend
+   Diseño: SSE como única fuente de verdad. Sin polling agresivo.
+   ═══════════════════════════════════════════════════════════ */
 
-/* ── Obtener job_id al cargar la página ─────────────── */
+let filesData  = [];
+let evtSource  = null;
+let isUploading = false;
+let jobId      = null;
+let initPromise = null;
+
+/* ── Inicialización del job (con cache) ─────────────── */
 async function initJob() {
-  try {
-    const res = await fetch('/job/new', { method: 'POST' });
-    const data = await res.json();
-    if (data.error) { toast(data.error, 'error'); return; }
-    jobId = data.job_id;
-  } catch (e) {
-    toast('No se pudo conectar con el servidor', 'error');
-  }
+  // Si ya hay una init en curso, esperar esa
+  if (initPromise) return initPromise;
+  initPromise = (async () => {
+    try {
+      const res = await fetch('/job/new', { method: 'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      jobId = data.job_id;
+      console.log('[init] jobId:', jobId);
+    } catch (e) {
+      console.error('[init] error:', e);
+      toast('No se pudo conectar: ' + e.message, 'error');
+      // Reintentar en 3s
+      setTimeout(() => { initPromise = null; initJob(); }, 3000);
+    }
+  })();
+  return initPromise;
 }
 
-/* ── Suprimir el diálogo "¿deseas cargar?" del browser ── */
-// El browser muestra ese diálogo si detecta archivos pendientes al salir.
-// Lo bloqueamos solo mientras hay una subida activa; fuera de eso, dejamos
-// navegar sin preguntas.
+/* ── Init de la página ──────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  initJob();
+  fetchB2Status();
+  setInterval(fetchB2Status, 30000);
+});
+
+/* ── Suprimir prompt de "deseas salir" salvo durante upload ── */
 window.addEventListener('beforeunload', e => {
   if (isUploading) {
     e.preventDefault();
@@ -577,13 +599,7 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-/* ── Init ───────────────────────────────────────────── */
-document.addEventListener('DOMContentLoaded', () => {
-  initJob();
-  fetchB2Status();
-  setInterval(fetchB2Status, 30000);
-});
-
+/* ── B2 status ──────────────────────────────────────── */
 async function fetchB2Status() {
   try {
     const r = await fetch('/b2-status');
@@ -595,15 +611,14 @@ async function fetchB2Status() {
     const files = document.getElementById('b2Files');
     const size  = document.getElementById('b2Size');
     const fldrs = document.getElementById('b2Folders');
-
     pill.style.display = 'flex';
     if (d.configured) {
       dot.className = 'b2-dot connected';
       label.textContent = 'B2 ✓';
       badge.textContent = `${d.file_count} archivos`;
-      files.textContent  = d.file_count;
-      size.textContent   = d.total_mb ?? '0';
-      fldrs.textContent  = d.files ? new Set(d.files.map(f => f.name.split('/')[0])).size : 0;
+      files.textContent = d.file_count;
+      size.textContent  = d.total_mb ?? '0';
+      fldrs.textContent = d.files ? new Set(d.files.map(f => f.name.split('/')[0])).size : 0;
     } else {
       dot.className = 'b2-dot error';
       label.textContent = 'B2 ✗';
@@ -612,18 +627,15 @@ async function fetchB2Status() {
       size.textContent  = '—';
       fldrs.textContent = '—';
     }
-  } catch (e) {
-    // silently fail — B2 optional
-  }
+  } catch (e) { /* silenciar */ }
 }
 
-/* ── Clear Backblaze + Memory ──────────────────────── */
+/* ── Limpiar B2 (background) ────────────────────────── */
 async function clearB2() {
   const btn = document.getElementById('clearB2Btn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Limpiando...';
 
-  // Limpiar estado local inmediatamente
   filesData = [];
   render();
   document.getElementById('dlBtn').style.display = 'none';
@@ -631,60 +643,46 @@ async function clearB2() {
   document.getElementById('sErr').textContent = '0';
 
   try {
-    // Lanzar limpieza en background (responde instantáneo, sin timeout)
     const r = await fetch('/clear-b2', { method: 'POST' });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
-
     if (d.status === 'already_running') {
-      toast('Ya hay una limpieza en curso...', 'warn');
-      logUI('⚠ Limpieza ya en curso', 'warn');
+      toast('Ya hay una limpieza en curso', 'warn');
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
       return;
     }
+    logUI('🗑 Limpiando Backblaze...', 'info');
 
-    logUI('🗑 Limpiando Backblaze en segundo plano...', 'info');
-    toast('Limpiando Backblaze...', 'info');
-
-    // Polling hasta que termine
     const pollClear = async () => {
       try {
         const s = await fetch('/clear-b2/status').then(r => r.json());
-        if (s.running) {
-          setTimeout(pollClear, 1500);
-          return;
-        }
-        // Terminó
+        if (s.running) { setTimeout(pollClear, 1500); return; }
         const res = s.last_result;
         if (res) {
           if (res.ok) {
-            toast(`🗑 ${res.deleted_count} archivos eliminados de Backblaze`, 'ok');
-            logUI(`🗑 Backblaze limpio: ${res.deleted_count} archivos eliminados`, 'ok');
+            toast(`🗑 ${res.deleted_count} archivos eliminados`, 'ok');
+            logUI(`🗑 Backblaze limpio: ${res.deleted_count} archivos`, 'ok');
           } else {
-            toast(`⚠ Limpieza con errores: ${res.errors.length} fallo(s)`, 'warn');
-            logUI(`⚠ Errores en limpieza: ${res.errors.join(', ')}`, 'warn');
+            toast(`⚠ Limpieza con ${res.errors.length} error(es)`, 'warn');
           }
         }
         fetchB2Status();
       } catch (e) {
-        logUI('✗ Error verificando limpieza: ' + e.message, 'error');
+        logUI('✗ Error verificando: ' + e.message, 'error');
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
       }
     };
     setTimeout(pollClear, 1500);
-
   } catch (e) {
-    toast('✗ Error al iniciar limpieza: ' + e.message, 'error');
-    logUI('✗ Error al iniciar limpieza: ' + e.message, 'error');
+    toast('✗ Error: ' + e.message, 'error');
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
   }
 }
 
-/* ── Drag & Drop ─────────────────────────────────────── */
+/* ── Drag & drop ────────────────────────────────────── */
 function doDrag(e, a) {
   e.preventDefault();
   const dz = document.getElementById('dropZone');
@@ -732,7 +730,6 @@ async function handleDrop(e) {
   if (added) { render(); logUI(`${added} elemento(s) agregado(s)`, 'ok'); }
 }
 
-/* ── Inputs ──────────────────────────────────────────── */
 document.getElementById('folderInput').addEventListener('change', function () {
   if (!this.files.length) return;
   for (const f of this.files) filesData.push({ path: f.webkitRelativePath || f.name, file: f });
@@ -749,28 +746,26 @@ document.getElementById('zipInput').addEventListener('change', function () {
   this.value = '';
 });
 
-/* ── Render ──────────────────────────────────────────── */
+/* ── Render preview ─────────────────────────────────── */
+function isJunkSeg(s) {
+  if (!s) return true;
+  const low = s.toLowerCase();
+  if (low.startsWith('descargamasiva-')) return true;
+  if (/^\d{8,}$/.test(s)) return true;
+  if (['downloads','descargas','temp','tmp','desktop','documents'].includes(low)) return true;
+  return false;
+}
+
 function render() {
   const chips    = document.getElementById('chips');
   const prevList = document.getElementById('prevList');
   const prevCnt  = document.getElementById('prevCount');
   const sTotal   = document.getElementById('sTotal');
 
-  // Misma lógica que is_junk_segment del backend
-  function isJunk(s) {
-    if (!s) return true;
-    const low = s.toLowerCase();
-    if (low.startsWith('descargamasiva-')) return true;
-    if (/^\d{8,}$/.test(s)) return true;
-    if (['downloads','descargas','temp','tmp','desktop','documents'].includes(low)) return true;
-    return false;
-  }
-
   const roots = new Map();
   filesData.forEach(f => {
     const parts = f.path.split('/');
-    // Buscar el primer segmento que no sea basura
-    const root = parts.find(p => p && !isJunk(p)) || parts[0];
+    const root = parts.find(p => p && !isJunkSeg(p)) || parts[0];
     if (root && !roots.has(root)) roots.set(root, { isZip: f.file.name.toLowerCase().endsWith('.zip') });
   });
 
@@ -779,7 +774,7 @@ function render() {
   document.getElementById('heroMsg').textContent = roots.size ? `${roots.size} elemento(s) cargado(s)` : 'Esperando elementos';
 
   if (!roots.size) {
-    chips.innerHTML    = '<span class="chips-empty">Sin elementos</span>';
+    chips.innerHTML = '<span class="chips-empty">Sin elementos</span>';
     prevList.innerHTML = '<div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div>';
     return;
   }
@@ -811,7 +806,7 @@ function renamePrev(name, isZip) {
 function removeRoot(root) {
   filesData = filesData.filter(f => {
     const parts = f.path.split('/');
-    const r = parts.find(p => p && !(['downloads','descargas','temp','tmp','desktop','documents'].includes(p.toLowerCase()) || p.toLowerCase().startsWith('descargamasiva-') || /^\d{8,}$/.test(p))) || parts[0];
+    const r = parts.find(p => p && !isJunkSeg(p)) || parts[0];
     return r !== root;
   });
   render(); logUI(`Eliminado: ${root}`, 'warn');
@@ -822,99 +817,130 @@ document.getElementById('clearBtn').onclick = () => {
   document.getElementById('dlBtn').style.display = 'none';
   document.getElementById('sOk').textContent  = '0';
   document.getElementById('sErr').textContent = '0';
-  logUI('Lista limpiada (solo memoria local)', 'info');
+  logUI('Lista limpiada', 'info');
 };
 
-/* ── Download without "Save As" dialog ──────────────── */
+/* ── Descarga ───────────────────────────────────────── */
 async function descargarZIP() {
   const dlBtn = document.getElementById('dlBtn');
   dlBtn.disabled = true;
-  dlBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando descarga...';
+  dlBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando...';
   try {
     const resp = await fetch(`/download/${jobId}`);
-    if (!resp.ok) throw new Error('No hay ZIP disponible');
+    if (!resp.ok) throw new Error('ZIP no disponible');
     const blob = await resp.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = url;
-    a.download = 'Renombrado.zip';
+    a.href = url; a.download = 'Renombrado.zip';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast('✅ Descarga iniciada — Renombrado.zip', 'ok');
+    toast('✅ Descargando Renombrado.zip', 'ok');
   } catch (e) {
     toast('Error al descargar: ' + e.message, 'error');
+    throw e;
   } finally {
     dlBtn.disabled = false;
     dlBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
   }
 }
 
-/* ── Run ─────────────────────────────────────────────── */
-function mostrarBtnDescarga(btn) {
-  btn = btn || document.getElementById('dlBtn');
-  btn.style.display = 'flex';
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
+/* ── Helper: mostrar botón de descarga ──────────────── */
+function showDownloadBtn() {
+  const dlBtn = document.getElementById('dlBtn');
+  dlBtn.style.display = 'flex';
+  dlBtn.disabled = false;
+  dlBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
 }
 
+/* ── Resetear estado de ejecución ───────────────────── */
+function resetRunState() {
+  const runBtn = document.getElementById('runBtn');
+  runBtn.disabled = false;
+  runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
+  isUploading = false;
+}
+
+/* ── Finalizar el job (llamado por SSE o fallback) ──── */
+let jobFinalized = false;
+async function finalizeJob() {
+  if (jobFinalized) return;
+  jobFinalized = true;
+
+  try {
+    const s = await fetch(`/status/${jobId}`).then(r => r.json());
+    if (s.zip_ready) {
+      showDownloadBtn();
+      setStatus('Listo', 'done');
+      try { await descargarZIP(); } catch {}
+    } else if (s.error) {
+      logUI(`Error: ${s.error}`, 'error');
+      toast(`Error: ${s.error}`, 'error');
+      setStatus('Error', '');
+    } else {
+      logUI('Proceso terminó sin generar ZIP', 'warn');
+      setStatus('Error', '');
+    }
+  } catch (e) {
+    logUI('Error verificando estado: ' + e.message, 'error');
+    setStatus('Error', '');
+  } finally {
+    resetRunState();
+    fetchB2Status();
+    if (evtSource) { evtSource.close(); evtSource = null; }
+  }
+}
+
+/* ── Botón Renombrar ────────────────────────────────── */
 document.getElementById('runBtn').addEventListener('click', async () => {
   if (!filesData.length) { toast('Agrega al menos un elemento', 'warn'); return; }
 
-  // Si jobId aún no llegó (red lenta), reintentamos obtenerlo
+  // Garantizar jobId
   if (!jobId) {
-    toast('Conectando con el servidor...', 'warn');
+    toast('Conectando al servidor...', 'info');
     await initJob();
     if (!jobId) { toast('No se pudo conectar. Recarga la página.', 'error'); return; }
   }
 
   const runBtn = document.getElementById('runBtn');
   const dlBtn  = document.getElementById('dlBtn');
+
+  // Resetear estado
+  jobFinalized = false;
   runBtn.disabled = true;
-  runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Subiendo archivos...';
+  runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Subiendo...';
   dlBtn.style.display = 'none';
   setStatus('Procesando', 'running');
   document.getElementById('logBox').innerHTML = '';
-
-  // Marcar subida activa para suprimir el beforeunload del browser
   isUploading = true;
 
+  // 1. Conectar SSE PRIMERO (antes de mandar archivos)
   if (evtSource) evtSource.close();
   evtSource = new EventSource(`/stream/${jobId}`);
-  evtSource.onmessage = e => {
-    const d = JSON.parse(e.data);
-    if (d.ping) return;
+
+  evtSource.onmessage = async e => {
+    let d;
+    try { d = JSON.parse(e.data); } catch { return; }
+    if (d.ping || d.connected) return;
+
+    // Sentinel: el job terminó (éxito o error)
+    if (d.msg === '__JOB_FINISHED__') {
+      await finalizeJob();
+      return;
+    }
+
     logUI(d.msg, d.tipo);
     const m = d.msg.match(/Listo:\s*(\d+)\s+archivos/);
     if (m) document.getElementById('sOk').textContent = m[1];
-    if (d.msg === 'Proceso completado.') {
-      runBtn.disabled = false;
-      runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
-      setStatus('Listo', 'done');
-      evtSource.close();
-      // Garantizar que el botón aparezca aunque el poll haya fallado
-      setTimeout(async () => {
-        try {
-          const s = await fetch(`/status/${jobId}`).then(r => r.json());
-          if (s.zip_ready) {
-            mostrarBtnDescarga();
-            try { await descargarZIP(); } catch {}
-            fetchB2Status();
-          }
-        } catch {}
-      }, 500);
-    }
-  };
-  evtSource.onerror = () => {
-    // Reconectar silenciosamente si se cae el SSE durante proceso largo
-    if (evtSource.readyState === EventSource.CLOSED && isUploading) {
-      setTimeout(() => {
-        evtSource = new EventSource(`/stream/${jobId}`);
-      }, 2000);
-    }
   };
 
+  evtSource.onerror = () => {
+    console.warn('[SSE] connection lost, browser will auto-reconnect');
+    // EventSource reconecta solo. No cerramos aquí.
+  };
+
+  // 2. Mandar archivos
   const fd = new FormData();
   fd.append('job_id', jobId);
   filesData.forEach((item, i) => {
@@ -924,51 +950,35 @@ document.getElementById('runBtn').addEventListener('click', async () => {
 
   try {
     runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
-    const res  = await fetch('/run', { method: 'POST', body: fd });
+    const res = await fetch('/run', { method: 'POST', body: fd });
     const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
 
-    // Mostrar warnings sin bloquear el proceso
     if (data.warnings && data.warnings.length) {
       data.warnings.forEach(w => logUI(`⚠ ${w}`, 'warn'));
     }
-    if (data.error) throw new Error(data.error);
+    isUploading = false;
 
-    // El SSE ya maneja la notificación de completado.
-    // El poll es backup por si el SSE falla (reconexiones, proxies, etc.)
-    let pollCount = 0;
-    const poll = async () => {
+    // 3. Fallback de seguridad: si SSE no notifica en 60s, verificar status
+    setTimeout(async () => {
+      if (jobFinalized) return;
+      console.warn('[fallback] SSE no notificó en 60s, verificando status...');
       try {
         const s = await fetch(`/status/${jobId}`).then(r => r.json());
-        if (s.zip_ready) {
-          mostrarBtnDescarga(dlBtn);
-          try { await descargarZIP(); } catch { /* botón sigue visible */ }
-          fetchB2Status();
-        } else if (s.running || pollCount < 30) {
-          // Seguir hasta 30 intentos (~25 seg) incluso si running=false
-          // para cubrir la ventana de carrera entre zip_bytes y running
-          pollCount++;
-          setTimeout(poll, 800);
-        } else {
-          fetchB2Status();
-        }
-      } catch {
-        if (pollCount < 30) { pollCount++; setTimeout(poll, 2000); }
-      }
-    };
-    setTimeout(poll, 1000);
+        if (s.done || s.zip_ready) await finalizeJob();
+      } catch {}
+    }, 60000);
+
   } catch (err) {
     logUI(`Error: ${err.message}`, 'error');
     toast(`Error: ${err.message}`, 'error');
-    runBtn.disabled = false;
-    runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
     setStatus('Error', '');
-    if (evtSource) evtSource.close();
-  } finally {
-    isUploading = false;
+    resetRunState();
+    if (evtSource) { evtSource.close(); evtSource = null; }
   }
 });
 
-/* ── Helpers ─────────────────────────────────────────── */
+/* ── UI helpers ─────────────────────────────────────── */
 function setStatus(txt, state) {
   const dot = document.getElementById('sdot');
   const lbl = document.getElementById('sLabel');
@@ -981,7 +991,7 @@ function setStatus(txt, state) {
     gg.style.opacity = '1';
     animGear();
   } else {
-    ct.textContent = state === 'done' ? 'LISTO' : 'LISTO';
+    ct.textContent = 'LISTO';
     gg.style.opacity = '0';
   }
 }
@@ -1002,6 +1012,7 @@ function logUI(msg, level = 'info') {
 function limpiarLog() {
   document.getElementById('logBox').innerHTML = '<div class="ll info"><span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span></div>';
 }
+
 function copiarLog() {
   const lines = [...document.getElementById('logBox').children].map(l => l.textContent).join('\n');
   navigator.clipboard.writeText(lines).then(() => toast('Log copiado', 'ok')).catch(() => toast('Error al copiar', 'error'));
