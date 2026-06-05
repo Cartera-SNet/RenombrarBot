@@ -551,11 +551,37 @@ body {
 <script>
 let filesData = [];
 let evtSource = null;
+let isUploading = false;
+let jobId = null;
 
-/* ── Init: check B2 status ─────────────────────────── */
+/* ── Obtener job_id al cargar la página ─────────────── */
+async function initJob() {
+  try {
+    const res = await fetch('/job/new', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { toast(data.error, 'error'); return; }
+    jobId = data.job_id;
+  } catch (e) {
+    toast('No se pudo conectar con el servidor', 'error');
+  }
+}
+
+/* ── Suprimir el diálogo "¿deseas cargar?" del browser ── */
+// El browser muestra ese diálogo si detecta archivos pendientes al salir.
+// Lo bloqueamos solo mientras hay una subida activa; fuera de eso, dejamos
+// navegar sin preguntas.
+window.addEventListener('beforeunload', e => {
+  if (isUploading) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+/* ── Init ───────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
+  initJob();
   fetchB2Status();
-  setInterval(fetchB2Status, 30000); // refresh every 30s
+  setInterval(fetchB2Status, 30000);
 });
 
 async function fetchB2Status() {
@@ -746,7 +772,7 @@ async function descargarZIP() {
   dlBtn.disabled = true;
   dlBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando descarga...';
   try {
-    const resp = await fetch('/download');
+    const resp = await fetch(`/download/${jobId}`);
     if (!resp.ok) throw new Error('No hay ZIP disponible');
     const blob = await resp.blob();
     const url  = URL.createObjectURL(blob);
@@ -773,13 +799,16 @@ document.getElementById('runBtn').addEventListener('click', async () => {
   const runBtn = document.getElementById('runBtn');
   const dlBtn  = document.getElementById('dlBtn');
   runBtn.disabled = true;
-  runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
+  runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Subiendo archivos...';
   dlBtn.style.display = 'none';
   setStatus('Procesando', 'running');
   document.getElementById('logBox').innerHTML = '';
 
+  // Marcar subida activa para suprimir el beforeunload del browser
+  isUploading = true;
+
   if (evtSource) evtSource.close();
-  evtSource = new EventSource('/stream');
+  evtSource = new EventSource(`/stream/${jobId}`);
   evtSource.onmessage = e => {
     const d = JSON.parse(e.data);
     if (d.ping) return;
@@ -793,35 +822,59 @@ document.getElementById('runBtn').addEventListener('click', async () => {
       evtSource.close();
     }
   };
+  evtSource.onerror = () => {
+    // Reconectar silenciosamente si se cae el SSE durante proceso largo
+    if (evtSource.readyState === EventSource.CLOSED && isUploading) {
+      setTimeout(() => {
+        evtSource = new EventSource(`/stream/${jobId}`);
+      }, 2000);
+    }
+  };
 
   const fd = new FormData();
+  fd.append('job_id', jobId);
   filesData.forEach((item, i) => {
     fd.append(`file_${i}`, item.file, item.file.name);
     fd.append(`path_${i}`, item.path);
   });
 
   try {
+    runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
     const res  = await fetch('/run', { method: 'POST', body: fd });
     const data = await res.json();
+
+    // Mostrar warnings sin bloquear el proceso
+    if (data.warnings && data.warnings.length) {
+      data.warnings.forEach(w => logUI(`⚠ ${w}`, 'warn'));
+    }
     if (data.error) throw new Error(data.error);
+
     const poll = async () => {
-      const s = await fetch('/status').then(r => r.json());
-      if (s.zip_ready) {
-        dlBtn.style.display = 'flex';
-        // Auto-trigger download without "save as" dialog
-        await descargarZIP();
-        fetchB2Status();
+      try {
+        const s = await fetch(`/status/${jobId}`).then(r => r.json());
+        if (s.zip_ready) {
+          dlBtn.style.display = 'flex';
+          await descargarZIP();
+          fetchB2Status();
+        } else if (s.running) {
+          setTimeout(poll, 800);
+        } else {
+          fetchB2Status();
+        }
+      } catch {
+        setTimeout(poll, 2000);
       }
-      else if (s.running) setTimeout(poll, 800);
-      else { fetchB2Status(); }
     };
     setTimeout(poll, 1000);
   } catch (err) {
     logUI(`Error: ${err.message}`, 'error');
+    toast(`Error: ${err.message}`, 'error');
     runBtn.disabled = false;
     runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
     setStatus('Error', '');
     if (evtSource) evtSource.close();
+  } finally {
+    isUploading = false;
   }
 });
 
