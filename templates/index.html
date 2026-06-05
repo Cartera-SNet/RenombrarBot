@@ -852,8 +852,22 @@ async function descargarZIP() {
 }
 
 /* ── Run ─────────────────────────────────────────────── */
+function mostrarBtnDescarga(btn) {
+  btn = btn || document.getElementById('dlBtn');
+  btn.style.display = 'flex';
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
+}
+
 document.getElementById('runBtn').addEventListener('click', async () => {
   if (!filesData.length) { toast('Agrega al menos un elemento', 'warn'); return; }
+
+  // Si jobId aún no llegó (red lenta), reintentamos obtenerlo
+  if (!jobId) {
+    toast('Conectando con el servidor...', 'warn');
+    await initJob();
+    if (!jobId) { toast('No se pudo conectar. Recarga la página.', 'error'); return; }
+  }
 
   const runBtn = document.getElementById('runBtn');
   const dlBtn  = document.getElementById('dlBtn');
@@ -879,6 +893,17 @@ document.getElementById('runBtn').addEventListener('click', async () => {
       runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
       setStatus('Listo', 'done');
       evtSource.close();
+      // Garantizar que el botón aparezca aunque el poll haya fallado
+      setTimeout(async () => {
+        try {
+          const s = await fetch(`/status/${jobId}`).then(r => r.json());
+          if (s.zip_ready) {
+            mostrarBtnDescarga();
+            try { await descargarZIP(); } catch {}
+            fetchB2Status();
+          }
+        } catch {}
+      }, 500);
     }
   };
   evtSource.onerror = () => {
@@ -908,25 +933,26 @@ document.getElementById('runBtn').addEventListener('click', async () => {
     }
     if (data.error) throw new Error(data.error);
 
+    // El SSE ya maneja la notificación de completado.
+    // El poll es backup por si el SSE falla (reconexiones, proxies, etc.)
+    let pollCount = 0;
     const poll = async () => {
       try {
         const s = await fetch(`/status/${jobId}`).then(r => r.json());
         if (s.zip_ready) {
-          // Mostrar botón PRIMERO y dejarlo siempre visible
-          dlBtn.style.display = 'flex';
-          dlBtn.disabled = false;
-          dlBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
-          // Descarga automática
-          await descargarZIP();
+          mostrarBtnDescarga(dlBtn);
+          try { await descargarZIP(); } catch { /* botón sigue visible */ }
           fetchB2Status();
-          // No seguir polingando — el botón queda disponible para re-descargar
-        } else if (s.running) {
+        } else if (s.running || pollCount < 30) {
+          // Seguir hasta 30 intentos (~25 seg) incluso si running=false
+          // para cubrir la ventana de carrera entre zip_bytes y running
+          pollCount++;
           setTimeout(poll, 800);
         } else {
           fetchB2Status();
         }
       } catch {
-        setTimeout(poll, 2000);
+        if (pollCount < 30) { pollCount++; setTimeout(poll, 2000); }
       }
     };
     setTimeout(poll, 1000);
