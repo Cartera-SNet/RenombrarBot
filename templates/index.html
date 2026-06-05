@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<title>RenomBot · SIS</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #eef1f8;
+  --surface:  #ffffff;
+  --border:   #e2e8f0;
+  --border2:  #cbd5e1;
+  --text:     #0f172a;
+  --muted:    #64748b;
+  --faint:    #94a3b8;
+  --indigo:   #4f46e5;
+  --indigo-h: #4338ca;
+  --indigo-l: #eef2ff;
+  --green:    #10b981;
+  --green-l:  #d1fae5;
+  --green-t:  #065f46;
+  --amber:    #f59e0b;
+  --amber-l:  #fef3c7;
+  --red:      #ef4444;
+  --red-l:    #fee2e2;
+  --log-bg:   #0d1117;
+  --radius:   14px;
+  --shadow:   0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 20px rgba(0,0,0,.09);
+}
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+/* ── Topbar ───────────────────────────────────────────── */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky; top: 0; z-index: 50;
+  box-shadow: var(--shadow);
+}
+.topbar-logo { height: 34px; width: auto; object-fit: contain; }
+.topbar-divider { width: 1px; height: 28px; background: var(--border); }
+.topbar-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.topbar-name span { color: var(--indigo); }
+.topbar-sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
+
+/* B2 status */
+.topbar-b2 {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 13px;
+  font-size: 12px; font-weight: 500; color: var(--muted);
+}
+.b2-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border2); flex-shrink: 0; transition: background .3s;
+}
+.b2-dot.connected { background: var(--green); }
+.b2-dot.error    { background: var(--red); }
+
+.topbar-status {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 13px;
+  font-size: 12px; font-weight: 500; color: var(--muted);
+}
+.sdot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border2); flex-shrink: 0;
+  transition: background .3s;
+}
+.sdot.running { background: var(--amber); animation: pulse 1.4s infinite; }
+.sdot.done    { background: var(--green); }
+@keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.3);opacity:.6} }
+
+/* ── Layout ───────────────────────────────────────────── */
+.layout {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* ── Card ─────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: .65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: #fafbfe;
+  font-size: 11px; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .07em;
+}
+.card-head i { color: var(--indigo); font-size: 11px; }
+.card-head .cnt { margin-left: auto; font-weight: 500; color: var(--faint); text-transform: none; letter-spacing: 0; }
+.card-body { padding: 1rem; }
+
+/* ── Robot hero ───────────────────────────────────────── */
+.hero {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #1e3a5f 100%);
+  border-radius: var(--radius);
+  padding: 1.25rem 1rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.25rem;
+}
+#robotSvg { width: 80px; height: 80px; flex-shrink: 0; filter: drop-shadow(0 4px 12px rgba(99,102,241,.5)); }
+.hero-info { flex: 1; }
+.hero-msg { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-bottom: .6rem; }
+.hero-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; }
+.hstat {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  padding: .5rem .4rem;
+  text-align: center;
+}
+.hstat .n { font-size: 20px; font-weight: 700; font-family: monospace; color: #fff; }
+.hstat .l { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 1px; text-transform: uppercase; letter-spacing: .04em; }
+.hstat.g .n { color: #6ee7b7; }
+.hstat.r .n { color: #fca5a5; }
+
+/* ── Drop zone ────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border2);
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 1.4rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  margin-bottom: .9rem;
+}
+.drop-zone:hover, .drop-zone.over {
+  border-color: var(--indigo);
+  background: var(--indigo-l);
+}
+.drop-zone i { font-size: 22px; color: var(--faint); display: block; margin-bottom: 6px; transition: color .2s; }
+.drop-zone:hover i, .drop-zone.over i { color: var(--indigo); }
+.drop-zone p { font-size: 13px; font-weight: 500; color: var(--text); }
+.drop-zone small { font-size: 11px; color: var(--faint); }
+
+/* ── Add buttons ─────────────────────────────────────── */
+.add-row { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .9rem; }
+.btn-add {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 8px 12px; border-radius: 9px;
+  border: 1.5px solid var(--border2);
+  background: var(--surface); color: var(--text);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .15s;
+}
+.btn-add:hover { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-l); }
+.btn-add i.fa-folder   { color: #f59e0b; }
+.btn-add i.fa-file-zipper { color: #8b5cf6; }
+
+/* ── Chips ───────────────────────────────────────────── */
+.chips-section { margin-bottom: .9rem; }
+.chips-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: .5rem;
+}
+.chips-header span { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.btn-clear { font-size: 11px; color: var(--red); background: none; border: none; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 4px; }
+.btn-clear:hover { opacity: .75; }
+.chips-wrap {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  max-height: 80px; overflow-y: auto;
+  padding-right: 2px;
+}
+.chips-wrap::-webkit-scrollbar { width: 3px; }
+.chips-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.chip {
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 6px;
+  font-size: 11px; font-family: monospace;
+  background: #f1f5f9; border: 1px solid var(--border); color: var(--text);
+  max-width: 160px;
+}
+.chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.zip { background: #faf5ff; border-color: #ddd6fe; }
+.chip-x { background: none; border: none; color: var(--faint); cursor: pointer; padding: 0; font-size: 12px; line-height: 1; flex-shrink: 0; }
+.chip-x:hover { color: var(--red); }
+.chips-empty { font-size: 12px; color: var(--faint); }
+
+/* ── B2 panel ─────────────────────────────────────────── */
+.b2-panel {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 12px;
+  padding: .9rem 1rem;
+  margin-bottom: .9rem;
+  border: 1px solid rgba(255,255,255,.06);
+}
+.b2-panel-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: .7rem;
+}
+.b2-panel-head i { color: #38bdf8; font-size: 14px; }
+.b2-panel-head span {
+  font-size: 11px; font-weight: 700; color: #94a3b8;
+  text-transform: uppercase; letter-spacing: .08em; flex: 1;
+}
+.b2-panel-head .b2-badge {
+  font-size: 10px; padding: 2px 8px; border-radius: 20px;
+  background: rgba(56,189,248,.15); color: #38bdf8; font-weight: 600;
+}
+.b2-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; margin-bottom: .7rem; }
+.b2-stat {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px; padding: .4rem .3rem; text-align: center;
+}
+.b2-stat .n { font-size: 14px; font-weight: 700; font-family: monospace; color: #e2e8f0; }
+.b2-stat .l { font-size: 9px; color: rgba(255,255,255,.35); margin-top: 1px; text-transform: uppercase; }
+
+.btn-clear-b2 {
+  width: 100%; padding: 8px;
+  background: rgba(239,68,68,.15);
+  border: 1px solid rgba(239,68,68,.3);
+  color: #fca5a5; font-size: 12px; font-weight: 600;
+  border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  transition: all .2s;
+}
+.btn-clear-b2:hover {
+  background: rgba(239,68,68,.25);
+  border-color: rgba(239,68,68,.5);
+}
+.btn-clear-b2:disabled { opacity: .4; cursor: not-allowed; }
+.btn-clear-b2 i { font-size: 11px; }
+
+/* ── Main action button ─────────────────────────────── */
+.btn-run {
+  width: 100%; padding: 11px;
+  background: linear-gradient(135deg, var(--indigo) 0%, #6366f1 100%);
+  color: #fff; font-size: 14px; font-weight: 600;
+  border: none; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 14px rgba(79,70,229,.35);
+  transition: all .2s;
+}
+.btn-run:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79,70,229,.4); }
+.btn-run:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-dl {
+  width: 100%; padding: 10px;
+  background: linear-gradient(135deg, var(--green) 0%, #059669 100%);
+  color: #fff; font-size: 13px; font-weight: 600;
+  border: none; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 12px rgba(16,185,129,.3);
+  text-decoration: none; margin-top: .6rem;
+  animation: popIn .3s ease;
+}
+.btn-dl:hover { opacity: .9; }
+@keyframes popIn { from{transform:scale(.95);opacity:.5} to{transform:scale(1);opacity:1} }
+
+/* ── Preview ─────────────────────────────────────────── */
+.prev-list { max-height: 160px; overflow-y: auto; }
+.prev-list::-webkit-scrollbar { width: 4px; }
+.prev-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.prev-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 1rem; border-bottom: 1px solid var(--border);
+  font-size: 12px; font-family: monospace;
+}
+.prev-row:last-child { border-bottom: none; }
+.prev-old { color: var(--faint); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prev-arr { color: var(--border2); flex-shrink: 0; font-size: 10px; }
+.prev-new { color: var(--indigo); font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prev-badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 20px; flex-shrink: 0;
+  background: var(--indigo-l); color: var(--indigo); font-weight: 600; font-family: sans-serif;
+}
+.prev-empty { padding: 2rem 1rem; text-align: center; font-size: 12px; color: var(--faint); }
+
+/* ── Log terminal ────────────────────────────────────── */
+.log-card { display: flex; flex-direction: column; }
+.log-topbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: #161b27;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.mac { width: 11px; height: 11px; border-radius: 50%; }
+.log-title { font-size: 11px; color: #475569; font-family: monospace; margin-left: 4px; flex: 1; }
+.log-action { background: none; border: none; color: #334155; cursor: pointer; font-size: 12px; transition: color .15s; padding: 0 4px; }
+.log-action:hover { color: #94a3b8; }
+#logBox {
+  background: var(--log-bg);
+  font-family: 'SF Mono','Fira Code',monospace;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  height: 240px;
+  overflow-y: auto;
+  padding: .5rem 0;
+}
+#logBox::-webkit-scrollbar { width: 5px; }
+#logBox::-webkit-scrollbar-track { background: #1e293b; }
+#logBox::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 3px; }
+.ll { display: flex; gap: 10px; padding: 1px 12px; border-left: 3px solid transparent; }
+.ll .ts  { color: #2d3748; flex-shrink: 0; }
+.ll.info { border-left-color: #3b82f6; } .ll.info .lm { color: #93c5fd; }
+.ll.ok   { border-left-color: #10b981; } .ll.ok   .lm { color: #a7f3d0; }
+.ll.warn { border-left-color: #f59e0b; } .ll.warn .lm { color: #fde68a; }
+.ll.error{ border-left-color: #ef4444; } .ll.error .lm{ color: #fca5a5; }
+.ll.head { border-left-color: transparent; } .ll.head .lm{ color: #e2e8f0; font-weight: 600; }
+.cursor  { display: inline-block; width: 7px; height: 12px; background: #10b981; border-radius: 1px; animation: blink .8s step-end infinite; vertical-align: middle; margin-left: 2px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── Toast ───────────────────────────────────────────── */
+#toastBox { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast {
+  pointer-events: auto; border-radius: 10px; padding: 9px 14px;
+  font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px;
+  border: 1px solid; box-shadow: var(--shadow-md); animation: popIn .25s ease;
+}
+.toast.ok    { background: #f0fdf4; border-color: #bbf7d0; color: #065f46; }
+.toast.warn  { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.toast.error { background: #fff1f2; border-color: #fecaca; color: #991b1b; }
+.toast.info  { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <img src="/static/SIS.png" alt="SIS" class="topbar-logo">
+  <div class="topbar-divider"></div>
+  <div>
+    <div class="topbar-name">RenomBot <span>· SIS</span></div>
+    <div class="topbar-sub">Servicios Integrales en Sistemas</div>
+  </div>
+
+  <!-- B2 status pill -->
+  <div class="topbar-b2" id="b2Pill" style="display:none">
+    <div class="b2-dot" id="b2Dot"></div>
+    <span id="b2Label">Backblaze</span>
+  </div>
+
+  <div class="topbar-status">
+    <div class="sdot" id="sdot"></div>
+    <span id="sLabel">Listo</span>
+  </div>
+</header>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- IZQUIERDA -->
+  <div>
+
+    <!-- HERO robot + stats -->
+    <div class="hero">
+      <svg id="robotSvg" viewBox="0 0 120 158" xmlns="http://www.w3.org/2000/svg">
+        <line x1="60" y1="22" x2="60" y2="11" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="60" cy="7" r="5" fill="#6366f1"/>
+        <rect x="29" y="22" width="62" height="44" rx="11" fill="#3730a3" stroke="#4338ca" stroke-width=".8"/>
+        <rect x="20" y="30" width="10" height="20" rx="5" fill="#312e81"/>
+        <rect x="90" y="30" width="10" height="20" rx="5" fill="#312e81"/>
+        <rect x="37" y="31" width="46" height="22" rx="7" fill="#1e1b4b"/>
+        <circle id="eyeL" cx="49" cy="42" r="5.5" fill="#6366f1"/>
+        <circle id="eyeR" cx="71" cy="42" r="5.5" fill="#6366f1"/>
+        <circle cx="49" cy="42" r="2.8" fill="#1d4ed8"/>
+        <circle cx="71" cy="42" r="2.8" fill="#1d4ed8"/>
+        <circle cx="51" cy="40" r="1" fill="white" opacity=".6"/>
+        <circle cx="73" cy="40" r="1" fill="white" opacity=".6"/>
+        <rect x="44" y="55" width="32" height="7" rx="3.5" fill="#1e1b4b"/>
+        <line x1="52" y1="55" x2="52" y2="62" stroke="#312e81" stroke-width="1"/>
+        <line x1="60" y1="55" x2="60" y2="62" stroke="#312e81" stroke-width="1"/>
+        <line x1="68" y1="55" x2="68" y2="62" stroke="#312e81" stroke-width="1"/>
+        <g id="gearGroup" opacity="0">
+          <circle cx="60" cy="41" r="11" fill="#0f172a" opacity=".6"/>
+          <g id="gear" fill="#fbbf24">
+            <circle cx="60" cy="41" r="5"/><circle cx="60" cy="41" r="2" fill="#0f172a"/>
+            <rect x="58.5" y="29" width="3" height="5" rx="1"/><rect x="58.5" y="48" width="3" height="5" rx="1"/>
+            <rect x="48" y="39.5" width="5" height="3" rx="1"/><rect x="67" y="39.5" width="5" height="3" rx="1"/>
+            <g transform="rotate(45,60,41)">
+              <rect x="58.5" y="29" width="3" height="5" rx="1"/><rect x="58.5" y="48" width="3" height="5" rx="1"/>
+              <rect x="48" y="39.5" width="5" height="3" rx="1"/><rect x="67" y="39.5" width="5" height="3" rx="1"/>
+            </g>
+          </g>
+        </g>
+        <rect x="50" y="66" width="20" height="12" rx="5" fill="#312e81"/>
+        <rect x="17" y="78" width="86" height="56" rx="11" fill="#3730a3" stroke="#4338ca" stroke-width=".8"/>
+        <rect x="27" y="86" width="66" height="40" rx="7" fill="#1e1b4b"/>
+        <circle cx="43" cy="98" r="4.5" fill="#10b981" opacity=".9"/>
+        <circle cx="60" cy="98" r="4.5" fill="#f59e0b" opacity=".9"/>
+        <circle cx="77" cy="98" r="4.5" fill="#ef4444" opacity=".9"/>
+        <rect x="33" y="110" width="54" height="8" rx="4" fill="#0f172a"/>
+        <rect id="loadBar" x="33" y="110" width="0" height="8" rx="4" fill="#6366f1"/>
+        <text id="chestTxt" x="60" y="121" text-anchor="middle" font-family="monospace" font-size="5" fill="#6366f1" opacity=".9">LISTO</text>
+        <rect x="4" y="80" width="14" height="44" rx="7" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+        <rect x="102" y="80" width="14" height="44" rx="7" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+        <rect x="35" y="134" width="18" height="17" rx="5" fill="#312e81"/>
+        <rect x="67" y="134" width="18" height="17" rx="5" fill="#312e81"/>
+        <rect x="32" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/>
+        <rect x="65" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/>
+      </svg>
+      <div class="hero-info">
+        <div class="hero-msg" id="heroMsg">Esperando elementos</div>
+        <div class="hero-stats">
+          <div class="hstat"><div class="n" id="sTotal">0</div><div class="l">Total</div></div>
+          <div class="hstat g"><div class="n" id="sOk">0</div><div class="l">OK</div></div>
+          <div class="hstat r"><div class="n" id="sErr">0</div><div class="l">Errores</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARGA -->
+    <div class="card">
+      <div class="card-head"><i class="fas fa-upload"></i> Cargar elementos</div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:.8rem">
+
+        <!-- Drop -->
+        <div class="drop-zone" id="dropZone"
+          ondragover="doDrag(event,'over')" ondragleave="doDrag(event,'leave')" ondrop="doDrag(event,'drop')">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p>Arrastrá carpetas o ZIPs aquí</p>
+          <small>Los ZIPs se descomprimen automáticamente</small>
+        </div>
+
+        <!-- Botones agregar -->
+        <div class="add-row">
+          <label class="btn-add">
+            <i class="fas fa-folder"></i> Carpeta
+            <input type="file" id="folderInput" webkitdirectory class="hidden" style="display:none">
+          </label>
+          <label class="btn-add">
+            <i class="fas fa-file-zipper"></i> ZIP(s)
+            <input type="file" id="zipInput" multiple accept=".zip" class="hidden" style="display:none">
+          </label>
+        </div>
+
+        <!-- Chips -->
+        <div class="chips-section">
+          <div class="chips-header">
+            <span><i class="fas fa-layer-group" style="color:var(--faint);margin-right:5px"></i>Elementos cargados</span>
+            <button class="btn-clear" id="clearBtn"><i class="fas fa-trash-alt" style="margin-right:4px"></i>Limpiar todo</button>
+          </div>
+          <div class="chips-wrap" id="chips">
+            <span class="chips-empty">Sin elementos</span>
+          </div>
+        </div>
+
+        <!-- ── Backblaze panel ── -->
+        <div class="b2-panel">
+          <div class="b2-panel-head">
+            <i class="fab fa-aws"></i>
+            <span>Backblaze B2</span>
+            <span class="b2-badge" id="b2Badge">--</span>
+          </div>
+          <div class="b2-stats">
+            <div class="b2-stat">
+              <div class="n" id="b2Files">--</div>
+              <div class="l">Archivos</div>
+            </div>
+            <div class="b2-stat">
+              <div class="n" id="b2Size">--</div>
+              <div class="l">MB usados</div>
+            </div>
+            <div class="b2-stat">
+              <div class="n" id="b2Folders">--</div>
+              <div class="l">Carpetas</div>
+            </div>
+          </div>
+          <button class="btn-clear-b2" id="clearB2Btn" onclick="clearB2()">
+            <i class="fas fa-trash-alt"></i>
+            Limpiar Todo (Backblaze + Memoria)
+          </button>
+        </div>
+
+        <!-- Botón principal -->
+        <button class="btn-run" id="runBtn">
+          <i class="fas fa-magic"></i> Renombrar y descargar ZIP
+        </button>
+        <button class="btn-dl" id="dlBtn" style="display:none" onclick="descargarZIP()">
+          <i class="fas fa-download"></i> Descargar Renombrado.zip
+        </button>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DERECHA -->
+  <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+    <!-- PREVIEW -->
+    <div class="card">
+      <div class="card-head">
+        <i class="fas fa-eye"></i> Vista previa — carpetas renombradas
+        <span class="cnt" id="prevCount">0 carpetas</span>
+      </div>
+      <div class="prev-list" id="prevList">
+        <div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="card log-card" style="overflow:hidden">
+      <div class="log-topbar">
+        <div class="mac" style="background:#ff5f57"></div>
+        <div class="mac" style="background:#febc2e"></div>
+        <div class="mac" style="background:#28c840"></div>
+        <span class="log-title">renombot — output</span>
+        <button class="log-action" onclick="limpiarLog()" title="Limpiar"><i class="fas fa-trash-alt"></i></button>
+        <button class="log-action" onclick="copiarLog()" title="Copiar"><i class="fas fa-copy"></i></button>
+      </div>
+      <div id="logBox">
+        <div class="ll info"><span class="ts">--:--:--</span><span class="lm">RenomBot listo. Arrastra carpetas o ZIPs. <span class="cursor"></span></span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toastBox"></div>
+
+<script>
+let filesData = [];
+let evtSource = null;
+
+/* ── Init: check B2 status ─────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  fetchB2Status();
+  setInterval(fetchB2Status, 30000); // refresh every 30s
+});
+
+async function fetchB2Status() {
+  try {
+    const r = await fetch('/b2-status');
+    const d = await r.json();
+    const pill  = document.getElementById('b2Pill');
+    const dot   = document.getElementById('b2Dot');
+    const label = document.getElementById('b2Label');
+    const badge = document.getElementById('b2Badge');
+    const files = document.getElementById('b2Files');
+    const size  = document.getElementById('b2Size');
+    const fldrs = document.getElementById('b2Folders');
+
+    pill.style.display = 'flex';
+    if (d.configured) {
+      dot.className = 'b2-dot connected';
+      label.textContent = 'B2 ✓';
+      badge.textContent = `${d.file_count} archivos`;
+      files.textContent  = d.file_count;
+      size.textContent   = d.total_mb ?? '0';
+      fldrs.textContent  = d.files ? new Set(d.files.map(f => f.name.split('/')[0])).size : 0;
+    } else {
+      dot.className = 'b2-dot error';
+      label.textContent = 'B2 ✗';
+      badge.textContent = 'Sin config';
+      files.textContent = '—';
+      size.textContent  = '—';
+      fldrs.textContent = '—';
+    }
+  } catch (e) {
+    // silently fail — B2 optional
+  }
+}
+
+/* ── Clear Backblaze + Memory ──────────────────────── */
+async function clearB2() {
+  const btn = document.getElementById('clearB2Btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Limpiando...';
+  try {
+    const r = await fetch('/clear-b2', { method: 'POST' });
+    const d = await r.json();
+    filesData = [];
+    render();
+    document.getElementById('dlBtn').style.display = 'none';
+    document.getElementById('sOk').textContent  = '0';
+    document.getElementById('sErr').textContent = '0';
+    toast(`🗑 ${d.deleted_count} archivos eliminados de Backblaze`, 'ok');
+    logUI(`🗑 Backblaze limpio: ${d.deleted_count} archivos`, 'ok');
+    fetchB2Status();
+  } catch (e) {
+    toast('Error al limpiar Backblaze', 'error');
+    logUI('✗ Error limpiando Backblaze: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
+  }
+}
+
+/* ── Drag & Drop ─────────────────────────────────────── */
+function doDrag(e, a) {
+  e.preventDefault();
+  const dz = document.getElementById('dropZone');
+  if (a === 'over')  dz.classList.add('over');
+  if (a === 'leave') dz.classList.remove('over');
+  if (a === 'drop')  { dz.classList.remove('over'); handleDrop(e); }
+}
+
+async function traverseDir(entry, relPath) {
+  const np = relPath ? `${relPath}/${entry.name}` : entry.name;
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    let all = [];
+    while (true) {
+      const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+      if (!batch.length) break;
+      all = all.concat(batch);
+    }
+    for (const c of all) await traverseDir(c, np);
+  } else if (entry.isFile) {
+    const file = await new Promise(res => entry.file(res));
+    filesData.push({ path: np, file });
+  }
+}
+
+async function handleDrop(e) {
+  const items = e.dataTransfer.items;
+  let added = 0;
+  for (let i = 0; i < items.length; i++) {
+    const entry = items[i].webkitGetAsEntry();
+    if (!entry) continue;
+    if (entry.isDirectory) {
+      await traverseDir(entry, '');
+      added++;
+    } else if (entry.isFile) {
+      const file = await new Promise(res => entry.file(res));
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        filesData.push({ path: file.name, file });
+        added++;
+      } else {
+        logUI(`Ignorado (no es ZIP): ${file.name}`, 'warn');
+      }
+    }
+  }
+  if (added) { render(); logUI(`${added} elemento(s) agregado(s)`, 'ok'); }
+}
+
+/* ── Inputs ──────────────────────────────────────────── */
+document.getElementById('folderInput').addEventListener('change', function () {
+  if (!this.files.length) return;
+  for (const f of this.files) filesData.push({ path: f.webkitRelativePath || f.name, file: f });
+  render(); logUI(`Carpeta agregada (${this.files.length} archivos)`, 'ok');
+  this.value = '';
+});
+document.getElementById('zipInput').addEventListener('change', function () {
+  let n = 0;
+  for (const f of this.files) {
+    if (f.name.toLowerCase().endsWith('.zip')) { filesData.push({ path: f.name, file: f }); n++; }
+  }
+  if (n) { render(); logUI(`${n} ZIP(s) agregado(s)`, 'ok'); }
+  this.value = '';
+});
+
+/* ── Render ──────────────────────────────────────────── */
+function render() {
+  const chips    = document.getElementById('chips');
+  const prevList = document.getElementById('prevList');
+  const prevCnt  = document.getElementById('prevCount');
+  const sTotal   = document.getElementById('sTotal');
+
+  const roots = new Map();
+  filesData.forEach(f => {
+    const root = f.path.split('/')[0];
+    if (!roots.has(root)) roots.set(root, { isZip: f.file.name.toLowerCase().endsWith('.zip') });
+  });
+
+  sTotal.textContent = roots.size;
+  prevCnt.textContent = roots.size + ' carpeta' + (roots.size === 1 ? '' : 's');
+  document.getElementById('heroMsg').textContent = roots.size ? `${roots.size} elemento(s) cargado(s)` : 'Esperando elementos';
+
+  if (!roots.size) {
+    chips.innerHTML    = '<span class="chips-empty">Sin elementos</span>';
+    prevList.innerHTML = '<div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div>';
+    return;
+  }
+
+  chips.innerHTML = [...roots.entries()].map(([name, info]) => `
+    <div class="chip${info.isZip ? ' zip' : ''}">
+      <i class="fas ${info.isZip ? 'fa-file-zipper' : 'fa-folder'}" style="font-size:10px;color:${info.isZip ? '#8b5cf6' : '#f59e0b'}"></i>
+      <span title="${esc(name)}">${esc(name)}</span>
+      <button class="chip-x" onclick="removeRoot('${esc(name)}')">✕</button>
+    </div>`).join('');
+
+  prevList.innerHTML = [...roots.entries()].map(([name, info]) => {
+    const newName = renamePrev(name, info.isZip);
+    return `<div class="prev-row">
+      <span class="prev-old" title="${esc(name)}">${esc(name)}</span>
+      <span class="prev-arr">→</span>
+      <span class="prev-new">${esc(newName)}</span>
+      <span class="prev-badge">carpeta</span>
+    </div>`;
+  }).join('');
+}
+
+function renamePrev(name, isZip) {
+  let n = isZip ? name.replace(/\.zip$/i, '') : name;
+  const parts = n.split('-');
+  return parts.length > 1 ? parts[parts.length - 1] : n;
+}
+
+function removeRoot(root) {
+  filesData = filesData.filter(f => f.path.split('/')[0] !== root);
+  render(); logUI(`Eliminado: ${root}`, 'warn');
+}
+
+document.getElementById('clearBtn').onclick = () => {
+  filesData = []; render();
+  document.getElementById('dlBtn').style.display = 'none';
+  document.getElementById('sOk').textContent  = '0';
+  document.getElementById('sErr').textContent = '0';
+  logUI('Lista limpiada (solo memoria local)', 'info');
+};
+
+/* ── Download without "Save As" dialog ──────────────── */
+async function descargarZIP() {
+  const dlBtn = document.getElementById('dlBtn');
+  dlBtn.disabled = true;
+  dlBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando descarga...';
+  try {
+    const resp = await fetch('/download');
+    if (!resp.ok) throw new Error('No hay ZIP disponible');
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'Renombrado.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('✅ Descarga iniciada — Renombrado.zip', 'ok');
+  } catch (e) {
+    toast('Error al descargar: ' + e.message, 'error');
+  } finally {
+    dlBtn.disabled = false;
+    dlBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
+  }
+}
+
+/* ── Run ─────────────────────────────────────────────── */
+document.getElementById('runBtn').addEventListener('click', async () => {
+  if (!filesData.length) { toast('Agrega al menos un elemento', 'warn'); return; }
+
+  const runBtn = document.getElementById('runBtn');
+  const dlBtn  = document.getElementById('dlBtn');
+  runBtn.disabled = true;
+  runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
+  dlBtn.style.display = 'none';
+  setStatus('Procesando', 'running');
+  document.getElementById('logBox').innerHTML = '';
+
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource('/stream');
+  evtSource.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.ping) return;
+    logUI(d.msg, d.tipo);
+    const m = d.msg.match(/Listo:\s*(\d+)\s+archivos/);
+    if (m) document.getElementById('sOk').textContent = m[1];
+    if (d.msg === 'Proceso completado.') {
+      runBtn.disabled = false;
+      runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
+      setStatus('Listo', 'done');
+      evtSource.close();
+    }
+  };
+
+  const fd = new FormData();
+  filesData.forEach((item, i) => {
+    fd.append(`file_${i}`, item.file, item.file.name);
+    fd.append(`path_${i}`, item.path);
+  });
+
+  try {
+    const res  = await fetch('/run', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const poll = async () => {
+      const s = await fetch('/status').then(r => r.json());
+      if (s.zip_ready) {
+        dlBtn.style.display = 'flex';
+        // Auto-trigger download without "save as" dialog
+        await descargarZIP();
+        fetchB2Status();
+      }
+      else if (s.running) setTimeout(poll, 800);
+      else { fetchB2Status(); }
+    };
+    setTimeout(poll, 1000);
+  } catch (err) {
+    logUI(`Error: ${err.message}`, 'error');
+    runBtn.disabled = false;
+    runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
+    setStatus('Error', '');
+    if (evtSource) evtSource.close();
+  }
+});
+
+/* ── Helpers ─────────────────────────────────────────── */
+function setStatus(txt, state) {
+  const dot = document.getElementById('sdot');
+  const lbl = document.getElementById('sLabel');
+  lbl.textContent = txt;
+  dot.className = 'sdot' + (state ? ' ' + state : '');
+  const ct = document.getElementById('chestTxt');
+  const gg = document.getElementById('gearGroup');
+  if (state === 'running') {
+    ct.textContent = 'PROCESO';
+    gg.style.opacity = '1';
+    animGear();
+  } else {
+    ct.textContent = state === 'done' ? 'LISTO' : 'LISTO';
+    gg.style.opacity = '0';
+  }
+}
+
+function logUI(msg, level = 'info') {
+  const box = document.getElementById('logBox');
+  const cur = box.querySelector('.cursor');
+  if (cur) cur.parentElement.remove();
+  const ts = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const d  = document.createElement('div');
+  d.className = `ll ${level}`;
+  d.innerHTML = `<span class="ts">${ts}</span><span class="lm">${esc(msg)}</span>`;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+  while (box.children.length > 500) box.removeChild(box.firstChild);
+}
+
+function limpiarLog() {
+  document.getElementById('logBox').innerHTML = '<div class="ll info"><span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span></div>';
+}
+function copiarLog() {
+  const lines = [...document.getElementById('logBox').children].map(l => l.textContent).join('\n');
+  navigator.clipboard.writeText(lines).then(() => toast('Log copiado', 'ok')).catch(() => toast('Error al copiar', 'error'));
+}
+
+function toast(msg, tipo = 'info') {
+  const box = document.getElementById('toastBox');
+  const d   = document.createElement('div');
+  d.className = `toast ${tipo}`;
+  const icons = { ok: 'fa-check-circle', error: 'fa-times-circle', warn: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+  d.innerHTML = `<i class="fas ${icons[tipo] || icons.info}"></i>${esc(msg)}`;
+  box.appendChild(d);
+  setTimeout(() => d.remove(), 4000);
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+let gearAngle = 0;
+function animGear() {
+  const g  = document.getElementById('gear');
+  const gg = document.getElementById('gearGroup');
+  if (!g || gg.style.opacity === '0') return;
+  gearAngle = (gearAngle + 2) % 360;
+  g.setAttribute('transform', `rotate(${gearAngle},60,41)`);
+  requestAnimationFrame(animGear);
+}
+
+window.removeRoot = removeRoot;
+</script>
+</body>
+</html>
