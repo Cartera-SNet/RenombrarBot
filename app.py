@@ -23,22 +23,15 @@ B2_ENDPOINT    = os.environ.get("B2_ENDPOINT",    "")
 MAX_UPLOAD_MB  = int(os.environ.get("MAX_UPLOAD_MB", "500"))
 MAX_JOBS       = int(os.environ.get("MAX_JOBS", "5"))
 
-# ── Estado por sesión (job_id → datos) ───────────────────
-# Cada usuario recibe un job_id único; sus datos nunca tocan los de otro.
+# ── Estado por sesión ────────────────────────────────────
 jobs_lock = threading.Lock()
-jobs: dict[str, dict] = {}
-# jobs[job_id] = {
-#   "log_queue": Queue,
-#   "running": bool,
-#   "zip_bytes": bytes | None,
-# }
+jobs: dict = {}
 
 def new_job() -> str:
     job_id = uuid.uuid4().hex
     with jobs_lock:
-        # Limpiar jobs viejos si hay demasiados (más de MAX_JOBS * 2)
+        # Purgar jobs terminados si hay demasiados
         if len(jobs) > MAX_JOBS * 2:
-            # Eliminar los que ya terminaron
             done = [jid for jid, j in jobs.items() if not j["running"]]
             for jid in done:
                 del jobs[jid]
@@ -49,7 +42,7 @@ def new_job() -> str:
         }
     return job_id
 
-def get_job(job_id: str) -> dict | None:
+def get_job(job_id: str):
     with jobs_lock:
         return jobs.get(job_id)
 
@@ -59,8 +52,19 @@ def job_log(job_id: str, msg: str, tipo: str = "info"):
         ts = datetime.now().strftime("%H:%M:%S")
         j["log_queue"].put({"ts": ts, "msg": msg, "tipo": tipo})
 
-# ── Helpers ──────────────────────────────────────────────
+# ── B2 client ────────────────────────────────────────────
+def get_b2_client():
+    if not all([B2_KEY_ID, B2_APP_KEY, B2_ENDPOINT]):
+        return None
+    return boto3.client(
+        "s3",
+        endpoint_url=f"https://{B2_ENDPOINT}",
+        aws_access_key_id=B2_KEY_ID,
+        aws_secret_access_key=B2_APP_KEY,
+        config=Config(signature_version="s3v4", connect_timeout=10, read_timeout=30),
+    )
 
+# ── Helpers ──────────────────────────────────────────────
 def folder_name_from(name: str) -> str:
     stem = name
     for ext in ('.zip', '.ZIP'):
@@ -89,7 +93,7 @@ def unpack_zip_bytes(data: bytes, zip_filename: str, job_id: str) -> list:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             bad = zf.testzip()
             if bad:
-                job_log(job_id, f"  ⚠ ZIP con sector corrupto: {bad}", "warn")
+                job_log(job_id, f"  ⚠ Sector corrupto: {bad}", "warn")
             for info in zf.infolist():
                 if info.is_dir():
                     continue
@@ -110,15 +114,15 @@ def unpack_zip_bytes(data: bytes, zip_filename: str, job_id: str) -> list:
         job_log(job_id, f"  ERROR al abrir {zip_filename}: {e}", "error")
     return results
 
-def collect(uploaded_files, job_id: str) -> tuple[list, list]:
+def collect(uploaded_files, job_id: str):
     items = []
     warnings = []
     for key in uploaded_files:
         if not key.startswith('file_'):
             continue
-        idx  = key[5:]
-        fs   = uploaded_files[key]
-        data = fs.read()
+        idx   = key[5:]
+        fs    = uploaded_files[key]
+        data  = fs.read()
         size_mb = len(data) / (1024 * 1024)
         if size_mb > MAX_UPLOAD_MB:
             warnings.append(f"{fs.filename}: excede {MAX_UPLOAD_MB} MB ({size_mb:.1f} MB)")
@@ -136,7 +140,7 @@ def collect(uploaded_files, job_id: str) -> tuple[list, list]:
             zip_name = fs_name if ends_zip(fs_name) else last_seg
             unpacked = unpack_zip_bytes(data, zip_name, job_id)
             if not unpacked:
-                warnings.append(f"{zip_name}: sin archivos válidos dentro del ZIP")
+                warnings.append(f"{zip_name}: sin archivos válidos")
             items.extend(unpacked)
         else:
             clean = [p for p in path_parts if not is_junk_segment(p)]
@@ -145,26 +149,14 @@ def collect(uploaded_files, job_id: str) -> tuple[list, list]:
             root = clean[0]
             if '-' in root:
                 clean[0] = folder_name_from(root)
-            final = '/'.join(clean)
-            items.append((final, data))
+            items.append(('/'.join(clean), data))
     return items, warnings
-
-def get_b2_client():
-    if not B2_KEY_ID or not B2_APP_KEY or not B2_ENDPOINT:
-        return None
-    return boto3.client(
-        "s3",
-        endpoint_url=f"https://{B2_ENDPOINT}",
-        aws_access_key_id=B2_KEY_ID,
-        aws_secret_access_key=B2_APP_KEY,
-        config=Config(signature_version="s3v4"),
-    )
 
 def run_bot(job_id: str, items: list):
     j = get_job(job_id)
     if not j:
         return
-    j["running"] = True
+    j["running"]   = True
     j["zip_bytes"] = None
 
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -195,14 +187,10 @@ def run_bot(job_id: str, items: list):
         used.add(new)
         rename_map[root] = new
 
-    pure_numeric = sum(1 for r in rename_map if r.isdigit())
-    if rename_map and (pure_numeric / len(rename_map)) < 0.5:
-        job_log(job_id, f"  ⚠ Solo {pure_numeric}/{len(rename_map)} carpetas tienen el patrón esperado", "warn")
-
-    buf = io.BytesIO()
-    ok  = 0
-    err_list  = []
-    ok_roots  = defaultdict(int)
+    buf      = io.BytesIO()
+    ok       = 0
+    err_list = []
+    ok_roots = defaultdict(int)
 
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zout:
         for path, data in sorted(items, key=lambda x: x[0]):
@@ -224,6 +212,7 @@ def run_bot(job_id: str, items: list):
     buf.seek(0)
     j["zip_bytes"] = buf.read()
 
+    # Subir a B2
     client = get_b2_client()
     if client:
         zip_name = f"Renombrado_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job_id[:6]}.zip"
@@ -243,6 +232,39 @@ def run_bot(job_id: str, items: list):
     job_log(job_id, "Proceso completado.", "ok")
     j["running"] = False
 
+# ── B2 background clear ──────────────────────────────────
+# Se ejecuta en thread para no bloquear el request (Railway timeout = 30s)
+b2_clear_status = {"running": False, "last_result": None}
+b2_clear_lock   = threading.Lock()
+
+def _do_clear_b2():
+    with b2_clear_lock:
+        b2_clear_status["running"] = True
+        b2_clear_status["last_result"] = None
+    client = get_b2_client()
+    deleted = []
+    errors  = []
+    if client:
+        try:
+            paginator = client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=B2_BUCKET_NAME):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    try:
+                        client.delete_object(Bucket=B2_BUCKET_NAME, Key=key)
+                        deleted.append(key)
+                    except ClientError as e:
+                        errors.append(f"{key}: {e}")
+        except ClientError as e:
+            errors.append(str(e))
+    with b2_clear_lock:
+        b2_clear_status["running"]     = False
+        b2_clear_status["last_result"] = {
+            "deleted_count": len(deleted),
+            "errors": errors,
+            "ok": len(errors) == 0,
+        }
+
 # ── Rutas Flask ──────────────────────────────────────────
 
 @app.route("/")
@@ -255,22 +277,19 @@ def favicon():
 
 @app.route("/job/new", methods=["POST"])
 def job_new():
-    """Crea un job_id nuevo para esta sesión de usuario."""
     with jobs_lock:
         active = sum(1 for j in jobs.values() if j["running"])
     if active >= MAX_JOBS:
-        return jsonify({"error": f"El servidor está ocupado ({active}/{MAX_JOBS} trabajos activos). Intenta en un momento."}), 503
-    job_id = new_job()
-    return jsonify({"job_id": job_id})
+        return jsonify({"error": f"Servidor ocupado ({active}/{MAX_JOBS} trabajos activos). Intenta en un momento."}), 503
+    return jsonify({"job_id": new_job()})
 
 @app.route("/preview", methods=["POST"])
 def preview():
-    job_id = request.form.get("job_id", "preview")
-    if job_id not in jobs:
-        new_job_id = new_job()
-        # reusar ese id temporalmente
-        job_id = new_job_id
-    items, warnings = collect(request.files, job_id)
+    tmp_id = new_job()
+    items, warnings = collect(request.files, tmp_id)
+    # Limpiar job temporal
+    with jobs_lock:
+        jobs.pop(tmp_id, None)
     roots = {}
     for path, _ in items:
         root = path.split('/')[0]
@@ -287,21 +306,17 @@ def run():
     if not j:
         return jsonify({"error": "Sesión inválida. Recarga la página."}), 400
     if j["running"]:
-        return jsonify({"error": "Ya hay un proceso en ejecución para esta sesión"}), 400
-
+        return jsonify({"error": "Ya hay un proceso activo en esta sesión"}), 400
     items, warnings = collect(request.files, job_id)
     if not items:
         msg = "No se recibieron archivos válidos"
         if warnings:
             msg += ": " + "; ".join(warnings)
         return jsonify({"error": msg}), 400
-
     while not j["log_queue"].empty():
         j["log_queue"].get()
-
     for w in warnings:
         job_log(job_id, f"⚠ {w}", "warn")
-
     threading.Thread(target=run_bot, args=(job_id, items), daemon=True).start()
     return jsonify({"ok": True, "warnings": warnings})
 
@@ -339,14 +354,14 @@ def status(job_id):
     with jobs_lock:
         active = sum(1 for jj in jobs.values() if jj["running"])
     return jsonify({
-        "running": j["running"],
-        "zip_ready": j["zip_bytes"] is not None,
+        "running":       j["running"],
+        "zip_ready":     j["zip_bytes"] is not None,
         "b2_configured": bool(B2_KEY_ID and B2_APP_KEY and B2_ENDPOINT),
-        "active_jobs": active,
-        "max_jobs": MAX_JOBS,
+        "active_jobs":   active,
+        "max_jobs":      MAX_JOBS,
     })
 
-@app.route("/b2-status", methods=["GET"])
+@app.route("/b2-status")
 def b2_status():
     client = get_b2_client()
     if not client:
@@ -359,40 +374,43 @@ def b2_status():
             for obj in page.get("Contents", []):
                 total_size += obj["Size"]
                 files.append({
-                    "name": obj["Key"],
-                    "size": obj["Size"],
+                    "name":     obj["Key"],
+                    "size":     obj["Size"],
                     "modified": obj["LastModified"].isoformat() if obj.get("LastModified") else None,
                 })
         return jsonify({
-            "configured": True,
-            "file_count": len(files),
+            "configured":  True,
+            "file_count":  len(files),
             "total_bytes": total_size,
-            "total_mb": round(total_size / 1024 / 1024, 2),
-            "files": files,
+            "total_mb":    round(total_size / 1024 / 1024, 2),
+            "files":       files,
         })
     except ClientError as e:
         return jsonify({"configured": True, "error": str(e)}), 500
 
 @app.route("/clear-b2", methods=["POST"])
 def clear_b2():
-    client = get_b2_client()
-    deleted = []
-    errors  = []
-    if client:
-        try:
-            paginator = client.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=B2_BUCKET_NAME):
-                for obj in page.get("Contents", []):
-                    key = obj["Key"]
-                    try:
-                        client.delete_object(Bucket=B2_BUCKET_NAME, Key=key)
-                        deleted.append(key)
-                    except ClientError as e:
-                        errors.append(f"{key}: {e}")
-        except ClientError as e:
-            errors.append(str(e))
-    return jsonify({"deleted": deleted, "deleted_count": len(deleted), "errors": errors})
+    """
+    Lanza la limpieza en background y responde inmediatamente.
+    Así no choca con el timeout de 30s de Railway.
+    """
+    with b2_clear_lock:
+        if b2_clear_status["running"]:
+            return jsonify({"status": "already_running", "msg": "Ya hay una limpieza en curso"}), 202
+
+    threading.Thread(target=_do_clear_b2, daemon=True).start()
+    return jsonify({"status": "started", "msg": "Limpieza iniciada en segundo plano"})
+
+@app.route("/clear-b2/status")
+def clear_b2_status():
+    """El frontend hace polling aquí para saber si terminó la limpieza."""
+    with b2_clear_lock:
+        return jsonify({
+            "running":     b2_clear_status["running"],
+            "last_result": b2_clear_status["last_result"],
+        })
 
 if __name__ == "__main__":
     print("\nRenomBot SIS — http://localhost:5000\n")
-    app.run(debug=False, threaded=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(debug=False, threaded=True, host="0.0.0.0",
+            port=int(os.environ.get("PORT", 5000)))

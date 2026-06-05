@@ -1,21 +1,30 @@
-name: Deploy to Railway
+# Este workflow está desactivado intencionalmente.
+# Railway hace el deploy automático al detectar cambios en main.
+# Configurar en: railway.app → tu proyecto → Settings → Source Repo
+#
+# Si necesitas forzar un redeploy manual: Railway → tu servicio → Deploy → Redeploy
+name: CI Check
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Deploy
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service renombot --detach
+      - name: Install dependencies
+        run: pip install flask boto3 botocore
+
+      - name: Syntax check
+        run: python -m py_compile app.py && echo "✓ app.py sintaxis OK"
