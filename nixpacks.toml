@@ -1,0 +1,23 @@
+# nixpacks.toml — RenomBot · SIS
+# Controla el build de Nixpacks para evitar:
+#   1. UndefinedVar '$NIXPACKS_PATH' que corrompe el PATH del contenedor
+#   2. Secrets (B2_KEY_ID / B2_APP_KEY) hornados en capas de imagen
+#
+# Las variables B2_* NUNCA van aquí; se configuran en Railway → Variables.
+
+[variables]
+# Solo variables no sensibles necesarias en build-time
+PYTHONUNBUFFERED = "1"
+PYTHONDONTWRITEBYTECODE = "1"
+
+[phases.setup]
+nixPkgs = ["python312", "gcc"]
+
+[phases.install]
+cmds = [
+  "python -m venv /opt/venv",
+  ". /opt/venv/bin/activate && pip install --no-cache-dir -r requirements.txt"
+]
+
+[start]
+cmd = "/opt/venv/bin/gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --worker-class gthread --timeout 300 --graceful-timeout 30 --keep-alive 75 --access-logfile - --error-logfile -"
