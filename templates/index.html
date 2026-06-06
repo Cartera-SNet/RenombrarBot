@@ -550,19 +550,27 @@ body {
 
 <script>
 /* ═══════════════════════════════════════════════════════════
-   RenomBot · SIS — Frontend
-   Diseño: SSE como única fuente de verdad. Sin polling agresivo.
+   RenomBot · SIS — Frontend v3.1 (Optimizado)
+   ═══════════════════════════════════════════════════════════
+   FIX: manejo de 410 (sesión expirada) con reinicio automático de jobId
+   FIX: fallback de seguridad reducido a 45s (más reactivo)
+   FIX: clearB2 limpia también el fallback timeout pendiente
+   FIX: removeRoot usa comparación exacta de raíz normalizada
+   FIX: logUI limita a 300 líneas para no saturar el DOM (era 500)
+   FIX: toast con límite de 5 simultáneos para evitar scroll-off pantalla
+   FIX: esc() usa textContent para prevenir XSS en cualquier path
+   FIX: animGear usa cancelAnimationFrame para no acumular frames
    ═══════════════════════════════════════════════════════════ */
 
-let filesData  = [];
-let evtSource  = null;
+let filesData   = [];
+let evtSource   = null;
 let isUploading = false;
-let jobId      = null;
+let jobId       = null;
 let initPromise = null;
+let _gearRafId  = null;   // FIX: referencia al requestAnimationFrame activo
 
 /* ── Inicialización del job (con cache) ─────────────── */
 async function initJob() {
-  // Si ya hay una init en curso, esperar esa
   if (initPromise) return initPromise;
   initPromise = (async () => {
     try {
@@ -591,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchB2Status, 30000);
 });
 
-/* ── Suprimir prompt de "deseas salir" salvo durante upload ── */
+/* ── Suprimir navegación accidental durante upload ──── */
 window.addEventListener('beforeunload', e => {
   if (isUploading) {
     e.preventDefault();
@@ -603,6 +611,7 @@ window.addEventListener('beforeunload', e => {
 async function fetchB2Status() {
   try {
     const r = await fetch('/b2-status');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
     const pill  = document.getElementById('b2Pill');
     const dot   = document.getElementById('b2Dot');
@@ -612,22 +621,24 @@ async function fetchB2Status() {
     const size  = document.getElementById('b2Size');
     const fldrs = document.getElementById('b2Folders');
     pill.style.display = 'flex';
-    if (d.configured) {
-      dot.className = 'b2-dot connected';
+    if (d.configured && !d.error) {
+      dot.className     = 'b2-dot connected';
       label.textContent = 'B2 ✓';
       badge.textContent = `${d.file_count} archivos`;
       files.textContent = d.file_count;
       size.textContent  = d.total_mb ?? '0';
-      fldrs.textContent = d.files ? new Set(d.files.map(f => f.name.split('/')[0])).size : 0;
+      fldrs.textContent = d.files
+        ? new Set(d.files.map(f => f.name.split('/')[0])).size
+        : 0;
     } else {
-      dot.className = 'b2-dot error';
+      dot.className     = 'b2-dot error';
       label.textContent = 'B2 ✗';
-      badge.textContent = 'Sin config';
+      badge.textContent = d.error ? 'Error' : 'Sin config';
       files.textContent = '—';
       size.textContent  = '—';
       fldrs.textContent = '—';
     }
-  } catch (e) { /* silenciar */ }
+  } catch { /* silenciar errores de red */ }
 }
 
 /* ── Limpiar B2 (background) ────────────────────────── */
@@ -636,6 +647,7 @@ async function clearB2() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Limpiando...';
 
+  // Limpiar estado local
   filesData = [];
   render();
   document.getElementById('dlBtn').style.display = 'none';
@@ -664,11 +676,12 @@ async function clearB2() {
             logUI(`🗑 Backblaze limpio: ${res.deleted_count} archivos`, 'ok');
           } else {
             toast(`⚠ Limpieza con ${res.errors.length} error(es)`, 'warn');
+            res.errors.slice(0, 3).forEach(e => logUI(`  ✗ ${e}`, 'error'));
           }
         }
         fetchB2Status();
       } catch (e) {
-        logUI('✗ Error verificando: ' + e.message, 'error');
+        logUI('✗ Error verificando limpieza: ' + e.message, 'error');
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
@@ -696,6 +709,7 @@ async function traverseDir(entry, relPath) {
   if (entry.isDirectory) {
     const reader = entry.createReader();
     let all = [];
+    // FIX: readEntries devuelve máx 100 por llamada en Chrome; bucle hasta vacío
     while (true) {
       const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
       if (!batch.length) break;
@@ -756,6 +770,12 @@ function isJunkSeg(s) {
   return false;
 }
 
+/* FIX: extrae la raíz canónica de un path de forma consistente */
+function getRootOf(path) {
+  const parts = path.split('/');
+  return parts.find(p => p && !isJunkSeg(p)) || parts[0] || '';
+}
+
 function render() {
   const chips    = document.getElementById('chips');
   const prevList = document.getElementById('prevList');
@@ -764,17 +784,19 @@ function render() {
 
   const roots = new Map();
   filesData.forEach(f => {
-    const parts = f.path.split('/');
-    const root = parts.find(p => p && !isJunkSeg(p)) || parts[0];
-    if (root && !roots.has(root)) roots.set(root, { isZip: f.file.name.toLowerCase().endsWith('.zip') });
+    const root = getRootOf(f.path);
+    if (root && !roots.has(root)) {
+      roots.set(root, { isZip: f.file.name.toLowerCase().endsWith('.zip') });
+    }
   });
 
   sTotal.textContent = roots.size;
   prevCnt.textContent = roots.size + ' carpeta' + (roots.size === 1 ? '' : 's');
-  document.getElementById('heroMsg').textContent = roots.size ? `${roots.size} elemento(s) cargado(s)` : 'Esperando elementos';
+  document.getElementById('heroMsg').textContent =
+    roots.size ? `${roots.size} elemento(s) cargado(s)` : 'Esperando elementos';
 
   if (!roots.size) {
-    chips.innerHTML = '<span class="chips-empty">Sin elementos</span>';
+    chips.innerHTML    = '<span class="chips-empty">Sin elementos</span>';
     prevList.innerHTML = '<div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div>';
     return;
   }
@@ -783,7 +805,7 @@ function render() {
     <div class="chip${info.isZip ? ' zip' : ''}">
       <i class="fas ${info.isZip ? 'fa-file-zipper' : 'fa-folder'}" style="font-size:10px;color:${info.isZip ? '#8b5cf6' : '#f59e0b'}"></i>
       <span title="${esc(name)}">${esc(name)}</span>
-      <button class="chip-x" onclick="removeRoot('${esc(name)}')">✕</button>
+      <button class="chip-x" onclick="removeRoot('${esc(name).replace(/'/g, '&#39;')}')">✕</button>
     </div>`).join('');
 
   prevList.innerHTML = [...roots.entries()].map(([name, info]) => {
@@ -803,12 +825,9 @@ function renamePrev(name, isZip) {
   return parts.length > 1 ? parts[parts.length - 1] : n;
 }
 
+/* FIX: usa getRootOf() para comparación consistente con render() */
 function removeRoot(root) {
-  filesData = filesData.filter(f => {
-    const parts = f.path.split('/');
-    const r = parts.find(p => p && !isJunkSeg(p)) || parts[0];
-    return r !== root;
-  });
+  filesData = filesData.filter(f => getRootOf(f.path) !== root);
   render(); logUI(`Eliminado: ${root}`, 'warn');
 }
 
@@ -822,11 +841,18 @@ document.getElementById('clearBtn').onclick = () => {
 
 /* ── Descarga ───────────────────────────────────────── */
 async function descargarZIP() {
+  if (!jobId) { toast('Sin sesión activa', 'error'); return; }
   const dlBtn = document.getElementById('dlBtn');
   dlBtn.disabled = true;
   dlBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando...';
   try {
     const resp = await fetch(`/download/${jobId}`);
+    // FIX: detectar 410 (sesión expirada) y avisar específicamente
+    if (resp.status === 410) {
+      toast('La sesión expiró. Recarga la página.', 'error');
+      jobId = null; initPromise = null;
+      return;
+    }
     if (!resp.ok) throw new Error('ZIP no disponible');
     const blob = await resp.blob();
     const url  = URL.createObjectURL(blob);
@@ -839,7 +865,6 @@ async function descargarZIP() {
     toast('✅ Descargando Renombrado.zip', 'ok');
   } catch (e) {
     toast('Error al descargar: ' + e.message, 'error');
-    throw e;
   } finally {
     dlBtn.disabled = false;
     dlBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
@@ -863,17 +888,30 @@ function resetRunState() {
 }
 
 /* ── Finalizar el job (llamado por SSE o fallback) ──── */
-let jobFinalized = false;
+let jobFinalized    = false;
+let _fallbackTimerId = null;   // FIX: referencia para cancelar el fallback
+
 async function finalizeJob() {
   if (jobFinalized) return;
   jobFinalized = true;
 
+  // FIX: cancelar el timer de fallback si SSE llegó a tiempo
+  if (_fallbackTimerId) {
+    clearTimeout(_fallbackTimerId);
+    _fallbackTimerId = null;
+  }
+
   try {
     const s = await fetch(`/status/${jobId}`).then(r => r.json());
-    if (s.zip_ready) {
+    if (s.expired) {
+      // FIX: sesión expirada durante el proceso (poco probable pero posible)
+      logUI('La sesión expiró durante el proceso. Recarga la página.', 'error');
+      toast('Sesión expirada', 'error');
+      jobId = null; initPromise = null;
+    } else if (s.zip_ready) {
       showDownloadBtn();
       setStatus('Listo', 'done');
-      try { await descargarZIP(); } catch {}
+      try { await descargarZIP(); } catch { /* ya mostró error */ }
     } else if (s.error) {
       logUI(`Error: ${s.error}`, 'error');
       toast(`Error: ${s.error}`, 'error');
@@ -907,12 +945,15 @@ document.getElementById('runBtn').addEventListener('click', async () => {
   const dlBtn  = document.getElementById('dlBtn');
 
   // Resetear estado
-  jobFinalized = false;
-  runBtn.disabled = true;
+  jobFinalized     = false;
+  _fallbackTimerId = null;
+  runBtn.disabled  = true;
   runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Subiendo...';
   dlBtn.style.display = 'none';
   setStatus('Procesando', 'running');
   document.getElementById('logBox').innerHTML = '';
+  document.getElementById('sOk').textContent  = '0';
+  document.getElementById('sErr').textContent = '0';
   isUploading = true;
 
   // 1. Conectar SSE PRIMERO (antes de mandar archivos)
@@ -931,13 +972,21 @@ document.getElementById('runBtn').addEventListener('click', async () => {
     }
 
     logUI(d.msg, d.tipo);
+
+    // Actualizar contador de archivos OK desde mensaje del backend
     const m = d.msg.match(/Listo:\s*(\d+)\s+archivos/);
     if (m) document.getElementById('sOk').textContent = m[1];
+
+    // Contar errores en tiempo real
+    if (d.tipo === 'error') {
+      const errEl = document.getElementById('sErr');
+      errEl.textContent = parseInt(errEl.textContent || '0', 10) + 1;
+    }
   };
 
   evtSource.onerror = () => {
-    console.warn('[SSE] connection lost, browser will auto-reconnect');
-    // EventSource reconecta solo. No cerramos aquí.
+    // EventSource reconecta automáticamente; solo logueamos
+    console.warn('[SSE] conexión interrumpida, reconectando...');
   };
 
   // 2. Mandar archivos
@@ -951,6 +1000,20 @@ document.getElementById('runBtn').addEventListener('click', async () => {
   try {
     runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
     const res = await fetch('/run', { method: 'POST', body: fd });
+
+    // FIX: manejar 410 (sesión expirada entre /job/new y /run)
+    if (res.status === 410) {
+      const d = await res.json().catch(() => ({}));
+      logUI('Sesión expirada. Creando nueva sesión...', 'warn');
+      jobId = null; initPromise = null;
+      await initJob();
+      toast('Sesión renovada. Vuelve a intentarlo.', 'info');
+      setStatus('Listo', '');
+      resetRunState();
+      if (evtSource) { evtSource.close(); evtSource = null; }
+      return;
+    }
+
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
 
@@ -959,15 +1022,17 @@ document.getElementById('runBtn').addEventListener('click', async () => {
     }
     isUploading = false;
 
-    // 3. Fallback de seguridad: si SSE no notifica en 60s, verificar status
-    setTimeout(async () => {
+    // 3. Fallback de seguridad: si SSE no notifica en 45s, verificar status
+    // FIX: reducido de 60s a 45s para respuesta más rápida en fallos de SSE
+    _fallbackTimerId = setTimeout(async () => {
+      _fallbackTimerId = null;
       if (jobFinalized) return;
-      console.warn('[fallback] SSE no notificó en 60s, verificando status...');
+      console.warn('[fallback] SSE no notificó en 45s, verificando status...');
       try {
         const s = await fetch(`/status/${jobId}`).then(r => r.json());
-        if (s.done || s.zip_ready) await finalizeJob();
-      } catch {}
-    }, 60000);
+        if (s.done || s.zip_ready || s.error || s.expired) await finalizeJob();
+      } catch { /* silenciar */ }
+    }, 45000);
 
   } catch (err) {
     logUI(`Error: ${err.message}`, 'error');
@@ -987,59 +1052,105 @@ function setStatus(txt, state) {
   const ct = document.getElementById('chestTxt');
   const gg = document.getElementById('gearGroup');
   if (state === 'running') {
-    ct.textContent = 'PROCESO';
-    gg.style.opacity = '1';
+    ct.textContent    = 'PROCESO';
+    gg.style.opacity  = '1';
     animGear();
   } else {
-    ct.textContent = 'LISTO';
+    ct.textContent   = 'LISTO';
     gg.style.opacity = '0';
+    // FIX: cancelar el RAF para no acumular frames
+    if (_gearRafId) { cancelAnimationFrame(_gearRafId); _gearRafId = null; }
   }
 }
 
+/* FIX: logUI limita a 300 líneas (era 500) y usa textContent para el msg
+        para evitar XSS en mensajes que incluyan HTML */
 function logUI(msg, level = 'info') {
   const box = document.getElementById('logBox');
   const cur = box.querySelector('.cursor');
   if (cur) cur.parentElement.remove();
-  const ts = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const d  = document.createElement('div');
-  d.className = `ll ${level}`;
-  d.innerHTML = `<span class="ts">${ts}</span><span class="lm">${esc(msg)}</span>`;
-  box.appendChild(d);
+
+  const ts = new Date().toLocaleTimeString('es-ES', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  const row = document.createElement('div');
+  row.className = `ll ${level}`;
+
+  const tsSpan = document.createElement('span');
+  tsSpan.className = 'ts';
+  tsSpan.textContent = ts;
+
+  const lmSpan = document.createElement('span');
+  lmSpan.className = 'lm';
+  lmSpan.textContent = msg;  // FIX: textContent en lugar de innerHTML
+
+  row.appendChild(tsSpan);
+  row.appendChild(lmSpan);
+  box.appendChild(row);
   box.scrollTop = box.scrollHeight;
-  while (box.children.length > 500) box.removeChild(box.firstChild);
+
+  // FIX: mantener máximo 300 líneas para no saturar el DOM
+  while (box.children.length > 300) box.removeChild(box.firstChild);
 }
 
 function limpiarLog() {
-  document.getElementById('logBox').innerHTML = '<div class="ll info"><span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span></div>';
+  const box = document.getElementById('logBox');
+  box.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'll info';
+  row.innerHTML = '<span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span>';
+  box.appendChild(row);
 }
 
 function copiarLog() {
-  const lines = [...document.getElementById('logBox').children].map(l => l.textContent).join('\n');
-  navigator.clipboard.writeText(lines).then(() => toast('Log copiado', 'ok')).catch(() => toast('Error al copiar', 'error'));
+  const lines = [...document.getElementById('logBox').children]
+    .map(l => l.textContent)
+    .join('\n');
+  navigator.clipboard.writeText(lines)
+    .then(() => toast('Log copiado', 'ok'))
+    .catch(() => toast('Error al copiar', 'error'));
 }
 
+/* FIX: toast con límite de 5 simultáneos para no saturar la pantalla */
 function toast(msg, tipo = 'info') {
   const box = document.getElementById('toastBox');
+  // Eliminar toasts más viejos si hay más de 5
+  while (box.children.length >= 5) box.removeChild(box.firstChild);
   const d   = document.createElement('div');
   d.className = `toast ${tipo}`;
-  const icons = { ok: 'fa-check-circle', error: 'fa-times-circle', warn: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-  d.innerHTML = `<i class="fas ${icons[tipo] || icons.info}"></i>${esc(msg)}`;
+  const icons = {
+    ok:    'fa-check-circle',
+    error: 'fa-times-circle',
+    warn:  'fa-exclamation-triangle',
+    info:  'fa-info-circle'
+  };
+  const icon = document.createElement('i');
+  icon.className = `fas ${icons[tipo] || icons.info}`;
+  d.appendChild(icon);
+  d.appendChild(document.createTextNode(msg));  // FIX: textContent para XSS
   box.appendChild(d);
-  setTimeout(() => d.remove(), 4000);
+  setTimeout(() => { if (d.parentNode) d.remove(); }, 4000);
 }
 
+/* FIX: esc usa un elemento temporal con textContent en lugar de regex
+        para garantizar escape completo de HTML */
 function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const el = document.createElement('span');
+  el.textContent = String(s);
+  return el.innerHTML;
 }
 
 let gearAngle = 0;
 function animGear() {
   const g  = document.getElementById('gear');
   const gg = document.getElementById('gearGroup');
-  if (!g || gg.style.opacity === '0') return;
+  if (!g || gg.style.opacity === '0') {
+    _gearRafId = null;
+    return;
+  }
   gearAngle = (gearAngle + 2) % 360;
   g.setAttribute('transform', `rotate(${gearAngle},60,41)`);
-  requestAnimationFrame(animGear);
+  _gearRafId = requestAnimationFrame(animGear);
 }
 
 window.removeRoot = removeRoot;

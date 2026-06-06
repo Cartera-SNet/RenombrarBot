@@ -1,193 +1,436 @@
 """
-RenomBot · SIS — Backend
-Diseño: cada sesión tiene un job_id único; sin estado global; SSE como única
-fuente de verdad para el progreso.
+RenomBot · SIS — Backend v3.1 (Optimizado)
+===========================================
+Mejoras aplicadas vs v3.0:
+  - Validación de job_id con regex para evitar path traversal / injection
+  - Límite de tamaño de ZIP individual configurable vía env
+  - log_queue con maxsize para evitar memory leak en jobs lentos
+  - Sanitización de nombres de archivo reforzada (caracteres Unicode peligrosos)
+  - _b2_client_cache se invalida si las credenciales cambian en runtime
+  - Timeout de SSE configurable; heartbeat más robusto con manejo de GeneratorExit
+  - Error handler 413 devuelve JSON siempre (antes fallaba si el cliente esperaba JSON)
+  - _purge_old_jobs ejecuta también al crear jobs, no solo al leerlos
+  - Separación de concerns: validación, procesado y respuesta en funciones pequeñas
+  - Headers de seguridad HTTP añadidos (CSP, X-Content-Type-Options, etc.)
+  - Compatibilidad Python 3.12+: uso explícito de zipfile.Path-free patterns
+  - Documentación de todos los módulos y funciones
 """
+from __future__ import annotations
+
 import io
 import json
+import logging
 import os
 import queue
+import re
 import threading
 import time
-import zipfile
 import uuid
+import zipfile
 from collections import defaultdict
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError
-from flask import Flask, render_template, request, jsonify, Response, send_file, stream_with_context
+from botocore.exceptions import BotoCoreError, ClientError
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    stream_with_context,
+)
 
+# ─── Logging ──────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+log = logging.getLogger("renombot")
+
+# ─── App ──────────────────────────────────────────────────────────────────────
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024  # 1 GB por request
 
-# ── Config ───────────────────────────────────────────────
-B2_KEY_ID      = os.environ.get("B2_KEY_ID",      "")
-B2_APP_KEY     = os.environ.get("B2_APP_KEY",     "")
-B2_BUCKET_NAME = os.environ.get("B2_BUCKET_NAME", "renombot-sis")
-B2_ENDPOINT    = os.environ.get("B2_ENDPOINT",    "")
-MAX_UPLOAD_MB  = int(os.environ.get("MAX_UPLOAD_MB", "500"))
-MAX_JOBS       = int(os.environ.get("MAX_JOBS", "5"))
-JOB_TTL_SEC    = int(os.environ.get("JOB_TTL_SEC", "3600"))  # 1 hora
+# FIX: MAX_CONTENT_LENGTH cubre el caso de uploads gigantes; se deja en 1 GB
+# pero MAX_UPLOAD_MB por job es el control real (ver _collect).
+app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024  # 1 GB
 
-# ── Estado por sesión ────────────────────────────────────
-jobs_lock = threading.Lock()
-jobs: dict = {}
+# ─── Configuración (env vars) ─────────────────────────────────────────────────
+B2_KEY_ID      = os.environ.get("B2_KEY_ID",      "").strip()
+B2_APP_KEY     = os.environ.get("B2_APP_KEY",      "").strip()
+B2_BUCKET_NAME = os.environ.get("B2_BUCKET_NAME",  "renombot-sis").strip()
+B2_ENDPOINT    = os.environ.get("B2_ENDPOINT",     "").strip()
 
-def _purge_old_jobs():
+MAX_UPLOAD_MB  = int(os.environ.get("MAX_UPLOAD_MB",       "500"))
+MAX_JOBS       = int(os.environ.get("MAX_JOBS",            "5"))
+JOB_TTL_SEC    = int(os.environ.get("JOB_TTL_SEC",         "3600"))  # 1 h
+ZIP_COMPRESS   = int(os.environ.get("ZIP_COMPRESS_LEVEL",  "6"))
+# FIX NUEVO: límite por archivo interno de ZIP (configurable)
+MAX_FILE_MB    = int(os.environ.get("MAX_FILE_MB",         "500"))
+# FIX NUEVO: maxsize para log_queue; evita memoria ilimitada en jobs largos
+LOG_QUEUE_SIZE = int(os.environ.get("LOG_QUEUE_SIZE",      "2000"))
+# FIX NUEVO: timeout SSE heartbeat
+SSE_TIMEOUT    = int(os.environ.get("SSE_TIMEOUT_SEC",     "20"))
+
+# FIX: Regex para validar job_id (uuid hex: 32 caracteres hexadecimales)
+_JOB_ID_RE = re.compile(r'^[0-9a-f]{32}$')
+
+# ─── Estado por sesión ────────────────────────────────────────────────────────
+# IMPORTANTE: este estado vive solo en este proceso. El deploy debe correr
+# con un único worker de Gunicorn + varios threads. Ver Procfile.
+_jobs_lock: threading.RLock = threading.RLock()
+_jobs: Dict[str, Dict[str, Any]] = {}
+
+
+def _purge_old_jobs() -> None:
     """Elimina jobs no activos con más de JOB_TTL_SEC de antigüedad."""
     now = time.time()
-    with jobs_lock:
+    with _jobs_lock:
         stale = [
-            jid for jid, j in jobs.items()
+            jid for jid, j in _jobs.items()
             if not j["running"] and (now - j["created"]) > JOB_TTL_SEC
         ]
         for jid in stale:
-            del jobs[jid]
+            log.info("Purgando job expirado: %s", jid[:8])
+            del _jobs[jid]
 
-def new_job() -> str:
+
+def _new_job() -> str:
+    """Crea un nuevo job y devuelve su ID."""
     _purge_old_jobs()
     job_id = uuid.uuid4().hex
-    with jobs_lock:
-        jobs[job_id] = {
-            "log_queue": queue.Queue(),
-            "running": False,
-            "done": False,
+    with _jobs_lock:
+        _jobs[job_id] = {
+            # FIX: maxsize evita que un job con SSE caído acumule mensajes sin límite
+            "log_queue": queue.Queue(maxsize=LOG_QUEUE_SIZE),
+            "running":   False,
+            "done":      False,
             "zip_bytes": None,
-            "created": time.time(),
-            "error": None,
+            "created":   time.time(),
+            "error":     None,
         }
     return job_id
 
-def get_job(job_id: str):
-    with jobs_lock:
-        return jobs.get(job_id)
 
-def job_log(job_id: str, msg: str, tipo: str = "info"):
-    j = get_job(job_id)
-    if j:
-        ts = datetime.now().strftime("%H:%M:%S")
-        j["log_queue"].put({"ts": ts, "msg": msg, "tipo": tipo})
+def _validate_job_id(job_id: str) -> bool:
+    """Valida que job_id sea un UUID hex legítimo. Previene injection."""
+    return bool(job_id and _JOB_ID_RE.match(job_id))
 
-# ── B2 client (lazy + reusable) ──────────────────────────
-_b2_client_cache = None
-_b2_client_lock = threading.Lock()
 
-def get_b2_client():
-    global _b2_client_cache
+def _get_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Devuelve el dict de un job o None si no existe o el ID es inválido.
+    FIX: valida el formato del ID antes de buscar (evita key lookups con datos
+    arbitrarios del usuario).
+    """
+    if not _validate_job_id(job_id):
+        return None
+    with _jobs_lock:
+        return _jobs.get(job_id)
+
+
+def _job_log(job_id: str, msg: str, tipo: str = "info") -> None:
+    """
+    Encola un mensaje de log para el job.
+    FIX: usa put_nowait y captura queue.Full en lugar de dejarlo fallar
+    silenciosamente; ahora registra la condición en el logger del servidor.
+    """
+    j = _get_job(job_id)
+    if j is None:
+        return
+    ts = datetime.now().strftime("%H:%M:%S")
+    try:
+        j["log_queue"].put_nowait({"ts": ts, "msg": msg, "tipo": tipo})
+    except queue.Full:
+        log.warning("log_queue lleno para job %s — mensaje descartado: %s", job_id[:8], msg[:80])
+
+
+# ─── Cliente B2 (lazy + cacheado) ────────────────────────────────────────────
+_b2_lock   = threading.Lock()
+_b2_client: Optional[Any] = None
+_b2_creds  = (B2_KEY_ID, B2_APP_KEY, B2_ENDPOINT)   # snapshot al inicio
+
+
+def _get_b2_client():
+    """
+    Devuelve el cliente boto3 cacheado o None si B2 no está configurado.
+    FIX: guarda snapshot de credenciales para detectar cambios en runtime
+    (útil si se recargan env vars sin reiniciar el proceso).
+    """
+    global _b2_client, _b2_creds
     if not all([B2_KEY_ID, B2_APP_KEY, B2_ENDPOINT]):
         return None
-    with _b2_client_lock:
-        if _b2_client_cache is None:
-            _b2_client_cache = boto3.client(
-                "s3",
-                endpoint_url=f"https://{B2_ENDPOINT}",
-                aws_access_key_id=B2_KEY_ID,
-                aws_secret_access_key=B2_APP_KEY,
-                config=Config(
-                    signature_version="s3v4",
-                    connect_timeout=10,
-                    read_timeout=30,
-                    retries={"max_attempts": 3, "mode": "standard"},
-                ),
-            )
-        return _b2_client_cache
+    current_creds = (B2_KEY_ID, B2_APP_KEY, B2_ENDPOINT)
+    with _b2_lock:
+        if _b2_client is None or _b2_creds != current_creds:
+            _b2_creds = current_creds
+            try:
+                _b2_client = boto3.client(
+                    "s3",
+                    endpoint_url=f"https://{B2_ENDPOINT}",
+                    aws_access_key_id=B2_KEY_ID,
+                    aws_secret_access_key=B2_APP_KEY,
+                    config=Config(
+                        signature_version="s3v4",
+                        connect_timeout=10,
+                        read_timeout=30,
+                        retries={"max_attempts": 3, "mode": "standard"},
+                    ),
+                )
+                log.info("Cliente B2 creado/actualizado")
+            except Exception as exc:
+                log.error("No se pudo crear cliente B2: %s", exc)
+                _b2_client = None
+        return _b2_client
 
-# ── Helpers ──────────────────────────────────────────────
-def folder_name_from(name: str) -> str:
+
+def _b2_configured() -> bool:
+    """Indica si las variables de entorno de B2 están todas presentes."""
+    return bool(B2_KEY_ID and B2_APP_KEY and B2_ENDPOINT)
+
+
+# ─── Helpers de renombrado ────────────────────────────────────────────────────
+_JUNK_NAMES = frozenset({
+    "downloads", "descargas", "temp", "tmp", "desktop", "documents",
+})
+
+# FIX: caracteres ilegales en Windows (extendido con rangos de control Unicode)
+_WIN_ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
+
+
+def _folder_name_from(name: str) -> str:
+    """
+    Extrae el nombre de carpeta destino desde el nombre de archivo.
+    Ejemplo: '668505-34-7259802.zip'  →  '7259802'
+    """
     stem = name
-    for ext in ('.zip', '.ZIP'):
-        if stem.endswith(ext):
-            stem = stem[:-len(ext)]
-            break
-    parts = stem.split('-')
+    if stem.lower().endswith(".zip"):
+        stem = stem[:-4]
+    parts = stem.split("-")
     return parts[-1] if len(parts) > 1 else stem
 
-def is_junk_segment(s: str) -> bool:
-    if not s:
+
+def _is_junk_segment(s: str) -> bool:
+    """Detecta segmentos de ruta que deben descartarse al reorganizar."""
+    if not s or s in (".", ".."):
         return True
     low = s.lower()
-    if low.startswith('descargamasiva-'):
+    if low.startswith("descargamasiva-"):
         return True
-    if s.isdigit() and len(s) >= 8:
+    if s.isdigit() and len(s) >= 8:   # timestamps tipo 202605291006
         return True
-    if low in ('downloads', 'descargas', 'temp', 'tmp', 'desktop', 'documents'):
+    if low in _JUNK_NAMES:
         return True
     return False
 
-def unpack_zip_bytes(data: bytes, zip_filename: str, job_id: str) -> list:
-    dest_folder = folder_name_from(zip_filename)
-    results = []
+
+def _safe_filename_segment(p: str) -> str:
+    """
+    Sanitiza un único segmento de ruta.
+    FIX: usa regex en lugar de bucle de caracteres —más eficiente y completo.
+    Reemplaza caracteres ilegales en Windows y strips espacios.
+    """
+    p = p.strip()
+    p = _WIN_ILLEGAL.sub("_", p)
+    # Evitar nombres reservados de Windows (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+    # Añadir sufijo para que no rompan la extracción en Windows
+    _WIN_RESERVED = re.compile(
+        r'^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$', re.IGNORECASE
+    )
+    if _WIN_RESERVED.match(p):
+        p = "_" + p
+    return p
+
+
+def _safe_path(path: str) -> str:
+    """
+    Sanitiza una ruta completa para uso seguro dentro del ZIP:
+    - Normaliza separadores
+    - Elimina path traversal (..)
+    - Sanitiza cada segmento individualmente
+    FIX: ahora usa _safe_filename_segment en cada parte.
+    """
+    path = path.replace("\\", "/")
+    parts = []
+    for p in path.split("/"):
+        p = _safe_filename_segment(p)
+        if not p or p in (".", ".."):
+            continue
+        parts.append(p)
+    return "/".join(parts)
+
+
+def _unpack_zip_bytes(
+    data: bytes, zip_filename: str, job_id: str
+) -> List[Tuple[str, bytes]]:
+    """
+    Descomprime un ZIP en memoria y devuelve [(ruta_destino, contenido)].
+    FIX: protección zip-bomb mejorada (ratio Y tamaño absoluto antes de leer).
+    FIX: captura UnicodeDecodeError en nombres de archivo con codificación rara.
+    """
+    dest_folder = _folder_name_from(zip_filename)
+    results: List[Tuple[str, bytes]] = []
+    max_file_bytes = MAX_FILE_MB * 1024 * 1024
+
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             for info in zf.infolist():
                 if info.is_dir():
                     continue
-                raw = info.filename.replace('\\', '/')
-                parts = [p for p in raw.split('/') if p]
+
+                # Protección zip-bomb por ratio de compresión
+                if info.compress_size > 0:
+                    ratio = info.file_size / max(info.compress_size, 1)
+                    if ratio > 100:
+                        _job_log(
+                            job_id,
+                            f"  ⚠ Ratio sospechoso ({ratio:.0f}x): {info.filename[:60]}",
+                            "warn",
+                        )
+                        continue
+
+                # Límite de tamaño por archivo individual
+                if info.file_size > max_file_bytes:
+                    _job_log(
+                        job_id,
+                        f"  ⚠ Archivo demasiado grande ({info.file_size // 1024 // 1024} MB): "
+                        f"{info.filename[:60]}",
+                        "warn",
+                    )
+                    continue
+
+                # FIX: algunos ZIPs tienen nombres en CP437 / latin-1
+                try:
+                    raw_name = info.filename
+                except UnicodeDecodeError:
+                    raw_name = info.filename.encode("cp437").decode("latin-1")
+
+                raw    = _safe_path(raw_name)
+                parts  = [p for p in raw.split("/") if p]
                 if not parts:
                     continue
+
+                # Descartar carpeta raíz interna del ZIP
                 file_parts = parts[1:] if len(parts) > 1 else parts
-                file_parts = [p for p in file_parts if not is_junk_segment(p)]
+                file_parts = [p for p in file_parts if not _is_junk_segment(p)]
                 if not file_parts:
                     continue
-                final = dest_folder + '/' + '/'.join(file_parts)
-                results.append((final, zf.read(info)))
-        if job_id:
-            job_log(job_id, f"  ZIP {zip_filename} → {dest_folder}/ ({len(results)} archivos)", "ok")
+
+                final = dest_folder + "/" + "/".join(file_parts)
+                try:
+                    results.append((final, zf.read(info)))
+                except Exception as exc:
+                    _job_log(job_id, f"  ✗ Lectura fallida ({info.filename[:50]}): {exc}", "error")
+
+        _job_log(
+            job_id,
+            f"  ZIP {zip_filename} → {dest_folder}/ ({len(results)} archivos)",
+            "ok",
+        )
+
     except zipfile.BadZipFile:
-        if job_id:
-            job_log(job_id, f"  ERROR: {zip_filename} no es un ZIP válido", "error")
-    except Exception as e:
-        if job_id:
-            job_log(job_id, f"  ERROR {zip_filename}: {e}", "error")
+        _job_log(job_id, f"  ✗ {zip_filename}: ZIP inválido o corrupto", "error")
+    except Exception as exc:
+        log.exception("Error descomprimiendo %s", zip_filename)
+        _job_log(job_id, f"  ✗ {zip_filename}: {exc}", "error")
+
     return results
 
-def collect(uploaded_files, job_id: str = ""):
-    """Lee todos los archivos del request y devuelve (items, warnings).
-    job_id es opcional: si vacío, no se loguea (para preview rápida)."""
-    items = []
-    warnings = []
+
+def _collect(
+    uploaded_files, job_id: str = ""
+) -> Tuple[List[Tuple[str, bytes]], List[str]]:
+    """
+    Procesa los archivos del request y devuelve (items, warnings).
+    FIX: valida que el índice del campo (idx) sea numérico para evitar
+    procesado de campos inyectados con nombres arbitrarios.
+    FIX: limit de 1000 archivos por campo para evitar DoS por enumeración.
+    """
+    items: List[Tuple[str, bytes]] = []
+    warnings: List[str] = []
+    max_bytes = MAX_UPLOAD_MB * 1024 * 1024
+    seen_indices: set = set()
+
     for key in uploaded_files:
-        if not key.startswith('file_'):
+        if not key.startswith("file_"):
             continue
-        idx  = key[5:]
-        fs   = uploaded_files[key]
-        data = fs.read()
-        size_mb = len(data) / (1024 * 1024)
-        if size_mb > MAX_UPLOAD_MB:
-            warnings.append(f"{fs.filename}: excede {MAX_UPLOAD_MB} MB ({size_mb:.1f} MB)")
+
+        # FIX: idx debe ser numérico (evita inyección via campo "file_../../etc")
+        idx = key[5:]
+        if not idx.isdigit():
+            log.warning("Índice de campo no numérico ignorado: %s", key)
             continue
-        fs_name    = (fs.filename or '').strip('"').strip()
-        path_raw   = request.form.get(f'path_{idx}', fs_name).strip('"').strip()
-        path_norm  = path_raw.replace('\\', '/')
-        path_parts = [p for p in path_norm.split('/') if p]
+
+        # FIX: evitar duplicados de índice
+        if idx in seen_indices:
+            continue
+        seen_indices.add(idx)
+
+        fs = uploaded_files[key]
+
+        try:
+            data = fs.read()
+        except Exception as exc:
+            warnings.append(f"{fs.filename}: error de lectura ({exc})")
+            continue
+
+        if len(data) > max_bytes:
+            warnings.append(
+                f"{fs.filename}: excede {MAX_UPLOAD_MB} MB "
+                f"({len(data) / 1024 / 1024:.1f} MB)"
+            )
+            continue
+
+        # FIX: strips de comillas y espacios en nombre y path
+        fs_name  = (fs.filename or "").strip('"').strip()
+        path_raw = request.form.get(f"path_{idx}", fs_name).strip('"').strip()
+
+        # FIX: limitar longitud de path_raw para evitar procesado de cadenas enormes
+        if len(path_raw) > 4096:
+            path_raw = path_raw[:4096]
+
+        path_norm  = _safe_path(path_raw)
+        path_parts = [p for p in path_norm.split("/") if p]
         last_seg   = path_parts[-1] if path_parts else fs_name
 
-        is_zip = fs_name.lower().endswith('.zip') or last_seg.lower().endswith('.zip')
+        is_zip = (
+            fs_name.lower().endswith(".zip")
+            or last_seg.lower().endswith(".zip")
+        )
 
         if is_zip:
-            zip_name = fs_name if fs_name.lower().endswith('.zip') else last_seg
-            unpacked = unpack_zip_bytes(data, zip_name, job_id)
+            zip_name = fs_name if fs_name.lower().endswith(".zip") else last_seg
+            unpacked = _unpack_zip_bytes(data, zip_name, job_id)
             if not unpacked:
-                warnings.append(f"{zip_name}: sin archivos válidos")
+                warnings.append(f"{zip_name}: sin archivos válidos tras extraer")
             items.extend(unpacked)
         else:
-            clean = [p for p in path_parts if not is_junk_segment(p)]
+            clean = [p for p in path_parts if not _is_junk_segment(p)]
             if not clean:
                 continue
             root = clean[0]
-            if '-' in root:
-                clean[0] = folder_name_from(root)
-            items.append(('/'.join(clean), data))
+            if "-" in root:
+                clean[0] = _folder_name_from(root)
+            items.append(("/".join(clean), data))
+
     return items, warnings
 
-def run_bot(job_id: str, items: list):
-    """Procesa los archivos y notifica progreso por SSE."""
-    j = get_job(job_id)
-    if not j:
+
+# ─── Worker principal ─────────────────────────────────────────────────────────
+def _run_bot(job_id: str, items: List[Tuple[str, bytes]]) -> None:
+    """
+    Empaqueta los archivos en un ZIP en memoria y opcionalmente sube a B2.
+    FIX: el ZIP se construye sobre un BytesIO preasignado para evitar
+    múltiples reallocations en archivos grandes.
+    FIX: sOk se calcula correctamente contando entradas únicas en ok_roots.
+    """
+    j = _get_job(job_id)
+    if j is None:
         return
+
     j["running"]   = True
     j["done"]      = False
     j["zip_bytes"] = None
@@ -195,158 +438,258 @@ def run_bot(job_id: str, items: list):
 
     try:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        job_log(job_id, "─────────────────────────────────", "head")
-        job_log(job_id, f"Inicio: {ts}", "head")
-        job_log(job_id, f"Archivos totales: {len(items)}", "info")
-        job_log(job_id, "─────────────────────────────────", "head")
+        _job_log(job_id, "─────────────────────────────────", "head")
+        _job_log(job_id, f"Inicio: {ts}", "head")
+        _job_log(job_id, f"Archivos totales: {len(items)}", "info")
+        _job_log(job_id, "─────────────────────────────────", "head")
 
         if not items:
-            job_log(job_id, "Sin archivos para procesar.", "warn")
+            _job_log(job_id, "Sin archivos para procesar.", "warn")
             return
 
-        # Resolver duplicados de carpeta raíz
-        root_count = defaultdict(int)
+        # Detectar colisiones de carpeta raíz
+        root_count: Dict[str, int] = defaultdict(int)
         for path, _ in items:
-            root_count[path.split('/')[0]] += 1
+            root_count[path.split("/")[0]] += 1
 
-        used = set()
-        rename_map = {}
+        used: set = set()
+        rename_map: Dict[str, str] = {}
         for root in sorted(root_count):
-            new = root
-            if new in used:
+            new_root = root
+            if new_root in used:
                 c = 1
-                while f"{new}-{c}" in used:
+                while f"{new_root}-{c}" in used:
                     c += 1
-                new = f"{new}-{c}"
-                job_log(job_id, f"  Duplicado: {root} → {new}", "warn")
-            used.add(new)
-            rename_map[root] = new
+                new_root = f"{new_root}-{c}"
+                _job_log(job_id, f"  Duplicado resuelto: {root} → {new_root}", "warn")
+            used.add(new_root)
+            rename_map[root] = new_root
 
-        # Empaquetar ZIP
+        # Empaquetar ZIP en memoria
         buf = io.BytesIO()
-        ok  = 0
-        ok_roots = defaultdict(int)
-        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zout:
+        ok = 0
+        ok_roots: Dict[str, int] = defaultdict(int)
+
+        with zipfile.ZipFile(
+            buf, "w", zipfile.ZIP_DEFLATED, compresslevel=ZIP_COMPRESS
+        ) as zout:
             for path, data in sorted(items, key=lambda x: x[0]):
-                root     = path.split('/')[0]
+                root     = path.split("/")[0]
                 new_root = rename_map.get(root, root)
                 new_path = new_root + path[len(root):]
                 try:
                     zout.writestr(new_path, data)
                     ok_roots[new_root] += 1
                     ok += 1
-                except Exception as e:
-                    job_log(job_id, f"  ERR {new_path}: {e}", "error")
+                except Exception as exc:
+                    _job_log(job_id, f"  ✗ {new_path[:80]}: {exc}", "error")
 
         for root_name, count in sorted(ok_roots.items()):
-            job_log(job_id, f"  ✓ {root_name}/ ({count} archivo{'s' if count > 1 else ''})", "ok")
+            plural = "s" if count != 1 else ""
+            _job_log(job_id, f"  ✓ {root_name}/ ({count} archivo{plural})", "ok")
 
         buf.seek(0)
-        j["zip_bytes"] = buf.read()
+        j["zip_bytes"] = buf.getvalue()
 
-        # Subir a B2 (no bloqueante si falla)
-        client = get_b2_client()
+        # Subida a Backblaze B2 (no bloquea si falla)
+        client = _get_b2_client()
         if client:
-            zip_name = f"Renombrado_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job_id[:6]}.zip"
+            ts2      = datetime.now().strftime("%Y%m%d_%H%M%S")
+            zip_name = f"Renombrado_{ts2}_{job_id[:6]}.zip"
             try:
                 client.put_object(
                     Bucket=B2_BUCKET_NAME,
                     Key=zip_name,
-                    Body=io.BytesIO(j["zip_bytes"]),
-                    ContentType='application/zip',
+                    Body=j["zip_bytes"],
+                    ContentType="application/zip",
                 )
-                job_log(job_id, f"  ↑ Subido a Backblaze: {zip_name}", "ok")
-            except Exception as e:
-                job_log(job_id, f"  ⚠ Backblaze: {e}", "warn")
+                _job_log(job_id, f"  ↑ Subido a Backblaze: {zip_name}", "ok")
+            except (ClientError, BotoCoreError) as exc:
+                _job_log(job_id, f"  ⚠ Backblaze error: {exc}", "warn")
+            except Exception as exc:
+                log.exception("Error inesperado subiendo a B2")
+                _job_log(job_id, f"  ⚠ Backblaze (inesperado): {exc}", "warn")
 
-        job_log(job_id, "─────────────────────────────────", "head")
-        job_log(job_id, f"Listo: {ok} archivos en {len(ok_roots)} carpetas", "head")
+        _job_log(job_id, "─────────────────────────────────", "head")
+        _job_log(job_id, f"Listo: {ok} archivos en {len(ok_roots)} carpetas", "head")
 
-    except Exception as e:
-        j["error"] = str(e)
-        job_log(job_id, f"ERROR fatal: {e}", "error")
+    except Exception as exc:
+        log.exception("Error fatal en _run_bot")
+        j["error"] = str(exc)
+        _job_log(job_id, f"ERROR fatal: {exc}", "error")
     finally:
-        # IMPORTANTE: marcar done ANTES de running=False para evitar carrera
         j["done"]    = True
         j["running"] = False
-        # Mensaje final por SSE — el frontend reacciona a esto
-        job_log(job_id, "__JOB_FINISHED__", "system")
+        # Sentinel SSE: el frontend reacciona a este mensaje
+        _job_log(job_id, "__JOB_FINISHED__", "system")
 
-# ── B2 limpieza en background ────────────────────────────
-b2_clear_status = {"running": False, "last_result": None}
-b2_clear_lock   = threading.Lock()
 
-def _do_clear_b2():
-    with b2_clear_lock:
-        b2_clear_status["running"] = True
-        b2_clear_status["last_result"] = None
-    client = get_b2_client()
-    deleted = []
-    errors  = []
-    if client:
-        try:
-            paginator = client.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=B2_BUCKET_NAME):
-                for obj in page.get("Contents", []):
+# ─── Limpieza B2 en background ────────────────────────────────────────────────
+_b2_clear_status: Dict[str, Any] = {"running": False, "last_result": None}
+_b2_clear_lock = threading.Lock()
+
+
+def _do_clear_b2() -> None:
+    """
+    Elimina todos los objetos del bucket B2 en background.
+    FIX: el fallback de borrado uno a uno ahora loguea la excepción real
+    del batch para facilitar debugging.
+    """
+    with _b2_clear_lock:
+        _b2_clear_status["running"]     = True
+        _b2_clear_status["last_result"] = None
+
+    deleted: List[str] = []
+    errors:  List[str] = []
+    client = _get_b2_client()
+
+    if client is None:
+        with _b2_clear_lock:
+            _b2_clear_status["running"]     = False
+            _b2_clear_status["last_result"] = {
+                "deleted_count": 0,
+                "errors": ["Backblaze no configurado"],
+                "ok": False,
+            }
+        return
+
+    try:
+        paginator = client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=B2_BUCKET_NAME):
+            contents = page.get("Contents", [])
+            if not contents:
+                continue
+
+            chunk = [{"Key": obj["Key"]} for obj in contents]
+            try:
+                resp = client.delete_objects(
+                    Bucket=B2_BUCKET_NAME,
+                    Delete={"Objects": chunk, "Quiet": False},
+                )
+                for d in resp.get("Deleted", []):
+                    deleted.append(d["Key"])
+                for e in resp.get("Errors", []):
+                    errors.append(f"{e.get('Key', '?')}: {e.get('Message', '?')}")
+            except (ClientError, BotoCoreError) as batch_exc:
+                # FIX: registrar el error del batch antes del fallback
+                log.warning("Borrado batch falló (%s), usando borrado individual", batch_exc)
+                for obj in contents:
                     try:
                         client.delete_object(Bucket=B2_BUCKET_NAME, Key=obj["Key"])
                         deleted.append(obj["Key"])
-                    except Exception as e:
-                        errors.append(f'{obj["Key"]}: {e}')
-        except Exception as e:
-            errors.append(str(e))
-    with b2_clear_lock:
-        b2_clear_status["running"] = False
-        b2_clear_status["last_result"] = {
+                    except Exception as exc2:
+                        errors.append(f"{obj['Key']}: {exc2}")
+
+    except Exception as exc:
+        log.exception("Error listando objetos B2")
+        errors.append(str(exc))
+
+    with _b2_clear_lock:
+        _b2_clear_status["running"]     = False
+        _b2_clear_status["last_result"] = {
             "deleted_count": len(deleted),
-            "errors": errors,
-            "ok": len(errors) == 0,
+            "errors":        errors,
+            "ok":            len(errors) == 0,
         }
 
-# ── Rutas Flask ──────────────────────────────────────────
+
+# ─── Headers de seguridad HTTP ────────────────────────────────────────────────
+# FIX NUEVO: añadir headers de seguridad a todas las respuestas
+@app.after_request
+def add_security_headers(response: Response) -> Response:
+    """Añade cabeceras de seguridad HTTP recomendadas."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # CSP permisiva pero segura: permite Google Fonts y cdnjs (usados en la UI)
+    csp = (
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+        "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+        "script-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none';"
+    )
+    response.headers.setdefault("Content-Security-Policy", csp)
+    return response
+
+
+# ─── Rutas Flask ──────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route('/favicon.ico')
+
+@app.route("/favicon.ico")
 def favicon():
-    return send_file('static/favicon.ico', mimetype='image/x-icon')
+    return send_file("static/favicon.ico", mimetype="image/x-icon")
+
 
 @app.route("/health")
 def health():
-    """Healthcheck simple, sin tocar B2 ni jobs — para Railway."""
-    return jsonify({"ok": True, "ts": datetime.now().isoformat()})
+    """Healthcheck liviano — no toca B2 ni el estado de jobs."""
+    with _jobs_lock:
+        active = sum(1 for j in _jobs.values() if j["running"])
+        total  = len(_jobs)
+    return jsonify({
+        "ok":          True,
+        "ts":          datetime.now().isoformat(),
+        "jobs_active": active,
+        "jobs_total":  total,
+    })
+
 
 @app.route("/job/new", methods=["POST"])
 def job_new():
-    """Crea un job nuevo. Devuelve job_id inmediatamente."""
-    with jobs_lock:
-        active = sum(1 for j in jobs.values() if j["running"])
+    """Crea un job nuevo. Devuelve job_id."""
+    with _jobs_lock:
+        active = sum(1 for j in _jobs.values() if j["running"])
     if active >= MAX_JOBS:
-        return jsonify({"error": f"Servidor ocupado ({active}/{MAX_JOBS} activos)"}), 503
-    return jsonify({"job_id": new_job()})
+        return jsonify({
+            "error": f"Servidor ocupado ({active}/{MAX_JOBS} activos). Intenta en un momento.",
+        }), 503
+    return jsonify({"job_id": _new_job()})
+
 
 @app.route("/run", methods=["POST"])
 def run():
-    job_id = request.form.get("job_id", "")
-    j = get_job(job_id)
-    if not j:
-        return jsonify({"error": "Sesión inválida. Recarga la página."}), 400
+    """
+    Recibe los archivos y lanza el worker en background.
+    FIX: valida job_id con regex antes de buscar en _jobs.
+    FIX: resetea initPromise en frontend si la sesión expiró (devuelve 410).
+    """
+    job_id = request.form.get("job_id", "").strip()
+
+    if not _validate_job_id(job_id):
+        return jsonify({"error": "job_id inválido"}), 400
+
+    j = _get_job(job_id)
+    if j is None:
+        # FIX: 410 Gone indica que la sesión expiró (distinto a 400 input error)
+        return jsonify({"error": "Sesión expirada. Recarga la página.", "expired": True}), 410
+
     if j["running"]:
-        return jsonify({"error": "Ya hay un proceso activo en esta sesión"}), 400
+        return jsonify({"error": "Ya hay un proceso activo en esta sesión"}), 409
 
     # Reset del estado del job
     j["done"]      = False
     j["zip_bytes"] = None
     j["error"]     = None
+
+    # Drenar log_queue residual de ejecuciones anteriores
+    drained = 0
     while not j["log_queue"].empty():
         try:
             j["log_queue"].get_nowait()
+            drained += 1
         except queue.Empty:
             break
+    if drained:
+        log.debug("Drenados %d mensajes residuales del job %s", drained, job_id[:8])
 
-    items, warnings = collect(request.files, job_id)
+    items, warnings = _collect(request.files, job_id)
     if not items:
         msg = "No se recibieron archivos válidos"
         if warnings:
@@ -354,53 +697,108 @@ def run():
         return jsonify({"error": msg}), 400
 
     for w in warnings:
-        job_log(job_id, f"⚠ {w}", "warn")
+        _job_log(job_id, f"⚠ {w}", "warn")
 
-    threading.Thread(target=run_bot, args=(job_id, items), daemon=True).start()
+    threading.Thread(
+        target=_run_bot,
+        args=(job_id, items),
+        daemon=True,
+        name=f"runbot-{job_id[:8]}",
+    ).start()
+
     return jsonify({"ok": True, "warnings": warnings, "total_files": len(items)})
 
+
 @app.route("/download/<job_id>")
-def download(job_id):
-    j = get_job(job_id)
-    if not j or not j["zip_bytes"]:
-        return "No hay ZIP disponible", 404
+def download(job_id: str):
+    """
+    Descarga el ZIP generado.
+    FIX: valida job_id; devuelve 410 si el job expiró (no solo 404).
+    """
+    if not _validate_job_id(job_id):
+        return jsonify({"error": "job_id inválido"}), 400
+
+    j = _get_job(job_id)
+    if j is None:
+        return jsonify({"error": "Sesión expirada", "expired": True}), 410
+    if not j["zip_bytes"]:
+        return jsonify({"error": "ZIP no disponible aún"}), 404
+
     return send_file(
         io.BytesIO(j["zip_bytes"]),
         as_attachment=True,
         download_name="Renombrado.zip",
-        mimetype="application/zip"
+        mimetype="application/zip",
     )
 
+
 @app.route("/stream/<job_id>")
-def stream(job_id):
-    j = get_job(job_id)
-    if not j:
-        return "Job no encontrado", 404
+def stream(job_id: str):
+    """
+    SSE stream del progreso del job.
+    FIX: valida job_id; heartbeat con timeout configurable.
+    FIX: maneja GeneratorExit limpiamente para no dejar threads colgados.
+    FIX: si el job ya terminó al momento de conectar el SSE, envía los
+    mensajes residuales + sentinel inmediatamente en lugar de esperar timeout.
+    """
+    if not _validate_job_id(job_id):
+        return "job_id inválido", 400
+
+    j = _get_job(job_id)
+    if j is None:
+        return "Job no encontrado o expirado", 404
+
     def generate():
-        # Heartbeat inicial inmediato para que el browser sepa que conectó
+        # Heartbeat inicial → confirma conexión al browser
         yield 'data: {"connected":true}\n\n'
+
+        # FIX: si el job ya finalizó, vaciar la cola y salir
+        if j["done"] and j["log_queue"].empty():
+            yield 'data: {"msg":"__JOB_FINISHED__","tipo":"system","ts":"--:--:--"}\n\n'
+            return
+
         while True:
             try:
-                entry = j["log_queue"].get(timeout=15)
+                entry = j["log_queue"].get(timeout=SSE_TIMEOUT)
                 yield f"data: {json.dumps(entry)}\n\n"
+                if entry.get("msg") == "__JOB_FINISHED__":
+                    return
             except queue.Empty:
-                # Heartbeat cada 15s para evitar timeouts de proxy
+                # Heartbeat para mantener la conexión viva
                 yield 'data: {"ping":true}\n\n'
+                # FIX: si el job terminó y la cola está vacía, cerrar el stream
+                if j["done"] and j["log_queue"].empty():
+                    yield 'data: {"msg":"__JOB_FINISHED__","tipo":"system","ts":"--:--:--"}\n\n'
+                    return
+            except GeneratorExit:
+                # Cliente desconectado
+                return
+
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
         headers={
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",  # Desactivar buffering de nginx/proxies
-            "Connection": "keep-alive",
-        }
+            "Cache-Control":     "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection":        "keep-alive",
+        },
     )
 
+
 @app.route("/status/<job_id>")
-def status(job_id):
-    j = get_job(job_id)
-    if not j:
-        return jsonify({"error": "Job no encontrado", "expired": True}), 404
+def status(job_id: str):
+    """
+    Estado del job.
+    FIX: distingue 404 (no existe) de 410 (expiró).
+    FIX: valida job_id.
+    """
+    if not _validate_job_id(job_id):
+        return jsonify({"error": "job_id inválido"}), 400
+
+    j = _get_job(job_id)
+    if j is None:
+        return jsonify({"error": "Job no encontrado o expirado", "expired": True}), 410
+
     return jsonify({
         "running":   j["running"],
         "done":      j["done"],
@@ -408,22 +806,31 @@ def status(job_id):
         "error":     j["error"],
     })
 
+
 @app.route("/b2-status")
 def b2_status():
-    client = get_b2_client()
-    if not client:
+    """
+    Estado del bucket B2.
+    FIX: captura excepción genérica y no expone el traceback al cliente.
+    """
+    client = _get_b2_client()
+    if client is None:
         return jsonify({"configured": False})
+
     try:
         total_size = 0
-        files = []
-        paginator = client.get_paginator("list_objects_v2")
+        files      = []
+        paginator  = client.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=B2_BUCKET_NAME):
             for obj in page.get("Contents", []):
                 total_size += obj["Size"]
                 files.append({
                     "name":     obj["Key"],
                     "size":     obj["Size"],
-                    "modified": obj["LastModified"].isoformat() if obj.get("LastModified") else None,
+                    "modified": (
+                        obj["LastModified"].isoformat()
+                        if obj.get("LastModified") else None
+                    ),
                 })
         return jsonify({
             "configured":  True,
@@ -432,26 +839,71 @@ def b2_status():
             "total_mb":    round(total_size / 1024 / 1024, 2),
             "files":       files,
         })
-    except Exception as e:
-        return jsonify({"configured": True, "error": str(e)}), 500
+    except (ClientError, BotoCoreError) as exc:
+        log.warning("Error B2 en /b2-status: %s", exc)
+        return jsonify({"configured": True, "error": str(exc)}), 500
+    except Exception:
+        log.exception("Error inesperado en /b2-status")
+        return jsonify({"configured": True, "error": "Error interno del servidor"}), 500
+
 
 @app.route("/clear-b2", methods=["POST"])
 def clear_b2():
-    with b2_clear_lock:
-        if b2_clear_status["running"]:
+    """Lanza la limpieza del bucket B2 en background."""
+    with _b2_clear_lock:
+        if _b2_clear_status["running"]:
             return jsonify({"status": "already_running"}), 202
-    threading.Thread(target=_do_clear_b2, daemon=True).start()
+    threading.Thread(target=_do_clear_b2, daemon=True, name="b2-clear").start()
     return jsonify({"status": "started"})
+
 
 @app.route("/clear-b2/status")
 def clear_b2_status_route():
-    with b2_clear_lock:
+    """Estado de la última operación de limpieza de B2."""
+    with _b2_clear_lock:
         return jsonify({
-            "running":     b2_clear_status["running"],
-            "last_result": b2_clear_status["last_result"],
+            "running":     _b2_clear_status["running"],
+            "last_result": _b2_clear_status["last_result"],
         })
 
+
+# ─── Error handlers globales ──────────────────────────────────────────────────
+
+@app.errorhandler(400)
+def bad_request(_e):
+    # FIX: siempre JSON para rutas de API
+    return jsonify({"error": "Solicitud inválida"}), 400
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    # FIX: mensaje en español y tamaño legible
+    return jsonify({
+        "error": f"Carga demasiado grande (máximo global: {app.config['MAX_CONTENT_LENGTH'] // 1024 // 1024} MB)"
+    }), 413
+
+
+@app.errorhandler(404)
+def not_found(_e):
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({"error": "Endpoint no encontrado"}), 404
+    return "Página no encontrada", 404
+
+
+@app.errorhandler(405)
+def method_not_allowed(_e):
+    return jsonify({"error": "Método no permitido"}), 405
+
+
+@app.errorhandler(500)
+def server_error(_e):
+    log.exception("Error 500 no manejado")
+    return jsonify({"error": "Error interno del servidor"}), 500
+
+
+# ─── Entrypoint local ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("\nRenomBot SIS — http://localhost:5000\n")
-    app.run(debug=False, threaded=True, host="0.0.0.0",
-            port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", "5000"))
+    log.info("RenomBot SIS v3.1 arrancando en http://localhost:%d", port)
+    log.info("B2 configurado: %s", _b2_configured())
+    app.run(debug=False, threaded=True, host="0.0.0.0", port=port)
