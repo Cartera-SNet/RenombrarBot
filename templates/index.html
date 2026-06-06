@@ -22,458 +22,212 @@
   --indigo-l: #eef2ff;
   --green:    #10b981;
   --green-l:  #d1fae5;
-  --green-t:  #065f46;
   --amber:    #f59e0b;
-  --amber-l:  #fef3c7;
   --red:      #ef4444;
-  --red-l:    #fee2e2;
+  --purple:   #7c3aed;
+  --purple-l: #faf5ff;
   --log-bg:   #0d1117;
   --radius:   14px;
   --shadow:   0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
   --shadow-md:0 4px 20px rgba(0,0,0,.09);
 }
-body {
-  font-family: 'Inter', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  font-size: 14px;
-}
+body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; font-size:14px; }
 
-/* ── Topbar ───────────────────────────────────────────── */
+/* ── TOPBAR ── */
 .topbar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 0 2rem;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  position: sticky; top: 0; z-index: 50;
-  box-shadow: var(--shadow);
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:0 2rem; height:56px;
+  display:flex; align-items:center; gap:1rem;
+  position:sticky; top:0; z-index:50;
+  box-shadow:var(--shadow);
 }
-.topbar-logo { height: 34px; width: auto; object-fit: contain; }
-.topbar-divider { width: 1px; height: 28px; background: var(--border); }
-.topbar-name { font-size: 15px; font-weight: 700; color: var(--text); }
-.topbar-name span { color: var(--indigo); }
-.topbar-sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
+.topbar-logo { height:34px; width:auto; object-fit:contain; }
+.topbar-divider { width:1px; height:28px; background:var(--border); }
+.topbar-name { font-size:15px; font-weight:700; color:var(--text); }
+.topbar-name span { color:var(--indigo); }
+.topbar-sub { font-size:11px; color:var(--faint); margin-top:1px; }
 
-/* B2 status */
-.topbar-b2 {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 5px 13px;
-  font-size: 12px; font-weight: 500; color: var(--muted);
-}
-.b2-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--border2); flex-shrink: 0; transition: background .3s;
-}
-.b2-dot.connected { background: var(--green); }
-.b2-dot.error    { background: var(--red); }
-
-.topbar-status {
-  display: flex; align-items: center; gap: 7px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 5px 13px;
-  font-size: 12px; font-weight: 500; color: var(--muted);
-}
-.sdot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--border2); flex-shrink: 0;
-  transition: background .3s;
-}
-.sdot.running { background: var(--amber); animation: pulse 1.4s infinite; }
-.sdot.done    { background: var(--green); }
-@keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.3);opacity:.6} }
-
-/* ── Layout ───────────────────────────────────────────── */
-.layout {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 1.5rem 2rem 2rem;
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 1.25rem;
-  align-items: start;
-}
-
-/* ── Card ─────────────────────────────────────────────── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-.card-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: .65rem 1rem;
-  border-bottom: 1px solid var(--border);
-  background: #fafbfe;
-  font-size: 11px; font-weight: 600;
-  color: var(--muted); text-transform: uppercase; letter-spacing: .07em;
-}
-.card-head i { color: var(--indigo); font-size: 11px; }
-.card-head .cnt { margin-left: auto; font-weight: 500; color: var(--faint); text-transform: none; letter-spacing: 0; }
-.card-body { padding: 1rem; }
-
-/* ── Robot hero ───────────────────────────────────────── */
-.hero {
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #1e3a5f 100%);
-  border-radius: var(--radius);
-  padding: 1.25rem 1rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  box-shadow: var(--shadow-md);
-  margin-bottom: 1.25rem;
-}
-#robotSvg { width: 80px; height: 80px; flex-shrink: 0; filter: drop-shadow(0 4px 12px rgba(99,102,241,.5)); }
-.hero-info { flex: 1; }
-.hero-msg { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-bottom: .6rem; }
-.hero-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; }
-.hstat {
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 10px;
-  padding: .5rem .4rem;
-  text-align: center;
-}
-.hstat .n { font-size: 20px; font-weight: 700; font-family: monospace; color: #fff; }
-.hstat .l { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 1px; text-transform: uppercase; letter-spacing: .04em; }
-.hstat.g .n { color: #6ee7b7; }
-.hstat.r .n { color: #fca5a5; }
-
-/* ── Drop zone ────────────────────────────────────────── */
-.drop-zone {
-  border: 2px dashed var(--border2);
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 1.4rem 1rem;
-  text-align: center;
-  cursor: pointer;
-  transition: all .2s;
-  margin-bottom: .9rem;
-}
-.drop-zone:hover, .drop-zone.over {
-  border-color: var(--indigo);
-  background: var(--indigo-l);
-}
-.drop-zone i { font-size: 22px; color: var(--faint); display: block; margin-bottom: 6px; transition: color .2s; }
-.drop-zone:hover i, .drop-zone.over i { color: var(--indigo); }
-.drop-zone p { font-size: 13px; font-weight: 500; color: var(--text); }
-.drop-zone small { font-size: 11px; color: var(--faint); }
-
-/* ── Add buttons ─────────────────────────────────────── */
-.add-row { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .9rem; }
-.btn-add {
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 8px 12px; border-radius: 9px;
-  border: 1.5px solid var(--border2);
-  background: var(--surface); color: var(--text);
-  font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: all .15s;
-}
-.btn-add:hover { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-l); }
-.btn-add i.fa-folder   { color: #f59e0b; }
-.btn-add i.fa-file-zipper { color: #8b5cf6; }
-
-/* ── Chips ───────────────────────────────────────────── */
-.chips-section { margin-bottom: .9rem; }
-.chips-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: .5rem;
-}
-.chips-header span { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.btn-clear { font-size: 11px; color: var(--red); background: none; border: none; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 4px; }
-.btn-clear:hover { opacity: .75; }
-.chips-wrap {
-  display: flex; flex-wrap: wrap; gap: 5px;
-  max-height: 80px; overflow-y: auto;
-  padding-right: 2px;
-}
-.chips-wrap::-webkit-scrollbar { width: 3px; }
-.chips-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-.chip {
-  display: flex; align-items: center; gap: 4px;
-  padding: 3px 8px; border-radius: 6px;
-  font-size: 11px; font-family: monospace;
-  background: #f1f5f9; border: 1px solid var(--border); color: var(--text);
-  max-width: 160px;
-}
-.chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chip.zip { background: #faf5ff; border-color: #ddd6fe; }
-.chip-x { background: none; border: none; color: var(--faint); cursor: pointer; padding: 0; font-size: 12px; line-height: 1; flex-shrink: 0; }
-.chip-x:hover { color: var(--red); }
-.chips-empty { font-size: 12px; color: var(--faint); }
-
-/* ── B2 panel ─────────────────────────────────────────── */
-.b2-panel {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border-radius: 12px;
-  padding: .9rem 1rem;
-  margin-bottom: .9rem;
-  border: 1px solid rgba(255,255,255,.06);
-}
-.b2-panel-head {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: .7rem;
-}
-.b2-panel-head i { color: #38bdf8; font-size: 14px; }
-.b2-panel-head span {
-  font-size: 11px; font-weight: 700; color: #94a3b8;
-  text-transform: uppercase; letter-spacing: .08em; flex: 1;
-}
-.b2-panel-head .b2-badge {
-  font-size: 10px; padding: 2px 8px; border-radius: 20px;
-  background: rgba(56,189,248,.15); color: #38bdf8; font-weight: 600;
-}
-.b2-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; margin-bottom: .7rem; }
-.b2-stat {
-  background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 8px; padding: .4rem .3rem; text-align: center;
-}
-.b2-stat .n { font-size: 14px; font-weight: 700; font-family: monospace; color: #e2e8f0; }
-.b2-stat .l { font-size: 9px; color: rgba(255,255,255,.35); margin-top: 1px; text-transform: uppercase; }
-
-.btn-clear-b2 {
-  width: 100%; padding: 8px;
-  background: rgba(239,68,68,.15);
-  border: 1px solid rgba(239,68,68,.3);
-  color: #fca5a5; font-size: 12px; font-weight: 600;
-  border-radius: 8px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  transition: all .2s;
-}
-.btn-clear-b2:hover {
-  background: rgba(239,68,68,.25);
-  border-color: rgba(239,68,68,.5);
-}
-.btn-clear-b2:disabled { opacity: .4; cursor: not-allowed; }
-.btn-clear-b2 i { font-size: 11px; }
-
-/* ── Main action button ─────────────────────────────── */
-.btn-run {
-  width: 100%; padding: 11px;
-  background: linear-gradient(135deg, var(--indigo) 0%, #6366f1 100%);
-  color: #fff; font-size: 14px; font-weight: 600;
-  border: none; border-radius: 10px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  box-shadow: 0 4px 14px rgba(79,70,229,.35);
-  transition: all .2s;
-}
-.btn-run:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79,70,229,.4); }
-.btn-run:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
-.btn-dl {
-  width: 100%; padding: 10px;
-  background: linear-gradient(135deg, var(--green) 0%, #059669 100%);
-  color: #fff; font-size: 13px; font-weight: 600;
-  border: none; border-radius: 10px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  box-shadow: 0 4px 12px rgba(16,185,129,.3);
-  text-decoration: none; margin-top: .6rem;
-  animation: popIn .3s ease;
-}
-.btn-dl:hover { opacity: .9; }
-@keyframes popIn { from{transform:scale(.95);opacity:.5} to{transform:scale(1);opacity:1} }
-
-/* ── Preview ─────────────────────────────────────────── */
-.prev-list { max-height: 160px; overflow-y: auto; }
-.prev-list::-webkit-scrollbar { width: 4px; }
-.prev-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-.prev-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 1rem; border-bottom: 1px solid var(--border);
-  font-size: 12px; font-family: monospace;
-}
-.prev-row:last-child { border-bottom: none; }
-.prev-old { color: var(--faint); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prev-arr { color: var(--border2); flex-shrink: 0; font-size: 10px; }
-.prev-new { color: var(--indigo); font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prev-badge {
-  font-size: 10px; padding: 2px 7px; border-radius: 20px; flex-shrink: 0;
-  background: var(--indigo-l); color: var(--indigo); font-weight: 600; font-family: sans-serif;
-}
-.prev-empty { padding: 2rem 1rem; text-align: center; font-size: 12px; color: var(--faint); }
-
-/* ── Log terminal ────────────────────────────────────── */
-.log-card { display: flex; flex-direction: column; }
-.log-topbar {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px;
-  background: #161b27;
-  border-bottom: 1px solid rgba(255,255,255,.06);
-}
-.mac { width: 11px; height: 11px; border-radius: 50%; }
-.log-title { font-size: 11px; color: #475569; font-family: monospace; margin-left: 4px; flex: 1; }
-.log-action { background: none; border: none; color: #334155; cursor: pointer; font-size: 12px; transition: color .15s; padding: 0 4px; }
-.log-action:hover { color: #94a3b8; }
-#logBox, #furipLogBox {
-  background: var(--log-bg);
-  font-family: 'SF Mono','Fira Code',monospace;
-  font-size: 0.72rem;
-  line-height: 1.6;
-  height: 240px;
-  overflow-y: auto;
-  padding: .5rem 0;
-}
-#logBox::-webkit-scrollbar, #furipLogBox::-webkit-scrollbar { width: 5px; }
-#logBox::-webkit-scrollbar-track, #furipLogBox::-webkit-scrollbar-track { background: #1e293b; }
-#logBox::-webkit-scrollbar-thumb, #furipLogBox::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 3px; }
-.ll { display: flex; gap: 10px; padding: 1px 12px; border-left: 3px solid transparent; }
-.ll .ts  { color: #2d3748; flex-shrink: 0; }
-.ll.info { border-left-color: #3b82f6; } .ll.info .lm { color: #93c5fd; }
-.ll.ok   { border-left-color: #10b981; } .ll.ok   .lm { color: #a7f3d0; }
-.ll.warn { border-left-color: #f59e0b; } .ll.warn .lm { color: #fde68a; }
-.ll.error{ border-left-color: #ef4444; } .ll.error .lm{ color: #fca5a5; }
-.ll.head { border-left-color: transparent; } .ll.head .lm{ color: #e2e8f0; font-weight: 600; }
-.cursor  { display: inline-block; width: 7px; height: 12px; background: #10b981; border-radius: 1px; animation: blink .8s step-end infinite; vertical-align: middle; margin-left: 2px; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
-/* ── Toast ───────────────────────────────────────────── */
-#toastBox { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.toast {
-  pointer-events: auto; border-radius: 10px; padding: 9px 14px;
-  font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px;
-  border: 1px solid; box-shadow: var(--shadow-md); animation: popIn .25s ease;
-}
-.toast.ok    { background: #f0fdf4; border-color: #bbf7d0; color: #065f46; }
-.toast.warn  { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-.toast.error { background: #fff1f2; border-color: #fecaca; color: #991b1b; }
-.toast.info  { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
-
-@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
-
-/* ── App switcher ────────────────────────────────────── */
+/* App switcher */
 .app-switcher {
-  display: flex; gap: 4px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 3px;
-  margin-left: auto;
+  margin-left:auto;
+  display:flex; gap:4px;
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:10px; padding:3px;
 }
 .app-tab {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 13px; border-radius: 7px;
-  font-size: 12px; font-weight: 600;
-  border: none; background: none; cursor: pointer;
-  color: var(--muted); transition: all .18s;
+  display:flex; align-items:center; gap:6px;
+  padding:5px 14px; border-radius:7px;
+  font-size:12px; font-weight:600;
+  border:none; background:none; cursor:pointer;
+  color:var(--muted); transition:all .18s;
 }
-.app-tab:hover { color: var(--text); background: var(--surface); }
-.app-tab.active {
-  background: var(--surface);
-  color: var(--indigo);
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
-}
-.app-tab i { font-size: 11px; }
+.app-tab:hover { color:var(--text); background:var(--surface); }
+.app-tab.active { background:var(--surface); color:var(--indigo); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.app-tab.active.furips { color:var(--purple); }
+.app-tab i { font-size:11px; }
 
-/* ── FURIPSBot panel ─────────────────────────────────── */
-#furipsApp { display: none; }
-#renomApp  { display: block; }
+/* B2 pill + status pill */
+.topbar-b2 {
+  display:flex; align-items:center; gap:8px;
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:20px; padding:5px 13px;
+  font-size:12px; font-weight:500; color:var(--muted);
+}
+.b2-dot { width:8px; height:8px; border-radius:50%; background:var(--border2); flex-shrink:0; transition:background .3s; }
+.b2-dot.connected { background:var(--green); }
+.b2-dot.error { background:var(--red); }
 
-.furips-drop-zone {
-  border: 2px dashed var(--border2);
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 1.8rem 1rem;
-  text-align: center;
-  cursor: pointer;
-  transition: all .2s;
-  margin-bottom: .9rem;
+.topbar-status {
+  display:flex; align-items:center; gap:7px;
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:20px; padding:5px 13px;
+  font-size:12px; font-weight:500; color:var(--muted);
 }
-.furips-drop-zone:hover, .furips-drop-zone.over {
-  border-color: #8b5cf6;
-  background: #faf5ff;
-}
-.furips-drop-zone i { font-size: 26px; color: var(--faint); display: block; margin-bottom: 8px; transition: color .2s; }
-.furips-drop-zone:hover i, .furips-drop-zone.over i { color: #8b5cf6; }
-.furips-drop-zone p { font-size: 13px; font-weight: 500; color: var(--text); }
-.furips-drop-zone small { font-size: 11px; color: var(--faint); }
+.sdot { width:8px; height:8px; border-radius:50%; background:var(--border2); flex-shrink:0; transition:background .3s; }
+.sdot.running { background:var(--amber); animation:pulse 1.4s infinite; }
+.sdot.done { background:var(--green); }
+@keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.3);opacity:.6} }
 
-.btn-run-furips {
-  width: 100%; padding: 11px;
-  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-  color: #fff; font-size: 14px; font-weight: 600;
-  border: none; border-radius: 10px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  box-shadow: 0 4px 14px rgba(124,58,237,.35);
-  transition: all .2s;
-}
-.btn-run-furips:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,58,237,.4); }
-.btn-run-furips:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+/* ── LAYOUT ── */
+.layout { max-width:1280px; margin:0 auto; padding:1.5rem 2rem 2rem; display:grid; grid-template-columns:360px 1fr; gap:1.25rem; align-items:start; }
+@media(max-width:800px){.layout{grid-template-columns:1fr;}}
 
-.btn-dl-furips {
-  width: 100%; padding: 10px;
-  background: linear-gradient(135deg, var(--green) 0%, #059669 100%);
-  color: #fff; font-size: 13px; font-weight: 600;
-  border: none; border-radius: 10px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  box-shadow: 0 4px 12px rgba(16,185,129,.3);
-  text-decoration: none; margin-top: .6rem;
-  animation: popIn .3s ease;
-}
-.btn-dl-furips:hover { opacity: .9; }
+/* ── CARD ── */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.card-head { display:flex; align-items:center; gap:8px; padding:.65rem 1rem; border-bottom:1px solid var(--border); background:#fafbfe; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; }
+.card-head i { color:var(--indigo); font-size:11px; }
+.card-head .cnt { margin-left:auto; font-weight:500; color:var(--faint); text-transform:none; letter-spacing:0; }
+.card-body { padding:1rem; }
 
-.furips-hero {
-  background: linear-gradient(135deg, #2d1b69 0%, #4c1d95 60%, #1e1b4b 100%);
-  border-radius: var(--radius);
-  padding: 1.1rem 1rem 1rem;
-  display: flex; align-items: center; gap: 1rem;
-  box-shadow: var(--shadow-md);
-  margin-bottom: 1.25rem;
-}
-.furips-hero-icon {
-  width: 70px; height: 70px; flex-shrink: 0;
-  background: rgba(139,92,246,.2);
-  border: 2px solid rgba(139,92,246,.4);
-  border-radius: 16px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 28px;
-  filter: drop-shadow(0 4px 12px rgba(139,92,246,.5));
-}
-.furips-info { flex: 1; }
-.furips-msg { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-bottom: .6rem; }
-.furips-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; }
-.fstat {
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 10px; padding: .5rem .4rem; text-align: center;
-}
-.fstat .n { font-size: 20px; font-weight: 700; font-family: monospace; color: #fff; }
-.fstat .l { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 1px; text-transform: uppercase; letter-spacing: .04em; }
-.fstat.g .n { color: #6ee7b7; }
-.fstat.r .n { color: #fca5a5; }
+/* ── HERO RENOMBOT ── */
+.hero { background:linear-gradient(135deg,#1e1b4b 0%,#312e81 60%,#1e3a5f 100%); border-radius:var(--radius); padding:1.25rem 1rem 1rem; display:flex; align-items:center; gap:1rem; box-shadow:var(--shadow-md); margin-bottom:1.25rem; }
+#robotSvg { width:80px; height:80px; flex-shrink:0; filter:drop-shadow(0 4px 12px rgba(99,102,241,.5)); }
+.hero-info { flex:1; }
+.hero-msg { font-size:14px; font-weight:600; color:#e2e8f0; margin-bottom:.6rem; }
+.hero-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem; }
+.hstat { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:.5rem .4rem; text-align:center; }
+.hstat .n { font-size:20px; font-weight:700; font-family:monospace; color:#fff; }
+.hstat .l { font-size:10px; color:rgba(255,255,255,.45); margin-top:1px; text-transform:uppercase; letter-spacing:.04em; }
+.hstat.g .n { color:#6ee7b7; }
+.hstat.r .n { color:#fca5a5; }
 
-.furips-loaded {
-  background: #faf5ff; border: 1px solid #ddd6fe;
-  border-radius: 10px; padding: .7rem 1rem;
-  margin-bottom: .9rem;
-  display: none;
-}
-.furips-loaded-title {
-  font-size: 11px; font-weight: 600; color: #6d28d9;
-  text-transform: uppercase; letter-spacing: .06em;
-  margin-bottom: .4rem;
-}
-.furips-folder-name {
-  font-size: 13px; font-weight: 600; color: var(--text);
-  display: flex; align-items: center; gap: 7px;
-}
-.furips-file-count {
-  font-size: 11px; color: var(--muted); margin-top: 3px;
-}
-.furips-clear {
-  font-size: 11px; color: var(--red); background: none; border: none;
-  cursor: pointer; font-weight: 500; float: right; padding: 0;
-}
-.furips-clear:hover { opacity: .75; }
+/* ── HERO FURIPSBOT ── */
+.furips-hero { background:linear-gradient(135deg,#2d1b69 0%,#4c1d95 60%,#1e1b4b 100%); border-radius:var(--radius); padding:1.25rem 1rem 1rem; display:flex; align-items:center; gap:1rem; box-shadow:var(--shadow-md); margin-bottom:1.25rem; }
+.furips-icon { width:80px; height:80px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:rgba(139,92,246,.2); border:2px solid rgba(139,92,246,.4); border-radius:16px; font-size:32px; filter:drop-shadow(0 4px 12px rgba(139,92,246,.5)); }
+.furips-info { flex:1; }
+.furips-msg { font-size:14px; font-weight:600; color:#e2e8f0; margin-bottom:.6rem; }
+.furips-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem; }
+.fstat { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:.5rem .4rem; text-align:center; }
+.fstat .n { font-size:20px; font-weight:700; font-family:monospace; color:#fff; }
+.fstat .l { font-size:10px; color:rgba(255,255,255,.45); margin-top:1px; text-transform:uppercase; letter-spacing:.04em; }
+.fstat.g .n { color:#6ee7b7; }
+.fstat.r .n { color:#fca5a5; }
+
+/* ── DROP ZONE ── */
+.drop-zone { border:2px dashed var(--border2); background:#f8fafc; border-radius:12px; padding:1.4rem 1rem; text-align:center; cursor:pointer; transition:all .2s; margin-bottom:.9rem; }
+.drop-zone:hover,.drop-zone.over { border-color:var(--indigo); background:var(--indigo-l); }
+.drop-zone i { font-size:22px; color:var(--faint); display:block; margin-bottom:6px; transition:color .2s; }
+.drop-zone:hover i,.drop-zone.over i { color:var(--indigo); }
+.drop-zone p { font-size:13px; font-weight:500; color:var(--text); }
+.drop-zone small { font-size:11px; color:var(--faint); }
+.drop-zone.purple:hover,.drop-zone.purple.over { border-color:var(--purple); background:var(--purple-l); }
+.drop-zone.purple:hover i,.drop-zone.purple.over i { color:var(--purple); }
+
+/* ── ADD ROW / BTN-ADD ── */
+.add-row { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.9rem; }
+.btn-add { display:flex; align-items:center; justify-content:center; gap:7px; padding:8px 12px; border-radius:9px; border:1.5px solid var(--border2); background:var(--surface); color:var(--text); font-size:13px; font-weight:500; cursor:pointer; transition:all .15s; }
+.btn-add:hover { border-color:var(--indigo); color:var(--indigo); background:var(--indigo-l); }
+.btn-add.p:hover { border-color:var(--purple); color:var(--purple); background:var(--purple-l); }
+
+/* ── CHIPS ── */
+.chips-section { margin-bottom:.9rem; }
+.chips-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem; }
+.chips-header span { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.btn-clear-txt { font-size:11px; color:var(--red); background:none; border:none; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:4px; }
+.btn-clear-txt:hover { opacity:.75; }
+.chips-wrap { display:flex; flex-wrap:wrap; gap:5px; max-height:80px; overflow-y:auto; padding-right:2px; }
+.chips-wrap::-webkit-scrollbar { width:3px; }
+.chips-wrap::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+.chip { display:flex; align-items:center; gap:4px; padding:3px 8px; border-radius:6px; font-size:11px; font-family:monospace; background:#f1f5f9; border:1px solid var(--border); color:var(--text); max-width:160px; }
+.chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chip.zip { background:#faf5ff; border-color:#ddd6fe; }
+.chip-x { background:none; border:none; color:var(--faint); cursor:pointer; padding:0; font-size:12px; line-height:1; flex-shrink:0; }
+.chip-x:hover { color:var(--red); }
+.chips-empty { font-size:12px; color:var(--faint); }
+
+/* ── B2 PANEL ── */
+.b2-panel { background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); border-radius:12px; padding:.9rem 1rem; margin-bottom:.9rem; border:1px solid rgba(255,255,255,.06); }
+.b2-panel-head { display:flex; align-items:center; gap:8px; margin-bottom:.7rem; }
+.b2-panel-head i { color:#38bdf8; font-size:14px; }
+.b2-panel-head span { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.08em; flex:1; }
+.b2-panel-head .b2-badge { font-size:10px; padding:2px 8px; border-radius:20px; background:rgba(56,189,248,.15); color:#38bdf8; font-weight:600; }
+.b2-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem; margin-bottom:.7rem; }
+.b2-stat { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:.4rem .3rem; text-align:center; }
+.b2-stat .n { font-size:14px; font-weight:700; font-family:monospace; color:#e2e8f0; }
+.b2-stat .l { font-size:9px; color:rgba(255,255,255,.35); margin-top:1px; text-transform:uppercase; }
+.btn-clear-b2 { width:100%; padding:8px; background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.3); color:#fca5a5; font-size:12px; font-weight:600; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:all .2s; }
+.btn-clear-b2:hover { background:rgba(239,68,68,.25); border-color:rgba(239,68,68,.5); }
+.btn-clear-b2:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ── BOTONES PRINCIPALES ── */
+.btn-run { width:100%; padding:11px; background:linear-gradient(135deg,var(--indigo) 0%,#6366f1 100%); color:#fff; font-size:14px; font-weight:600; border:none; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 14px rgba(79,70,229,.35); transition:all .2s; }
+.btn-run:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(79,70,229,.4); }
+.btn-run:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+.btn-run.purple { background:linear-gradient(135deg,var(--purple) 0%,#8b5cf6 100%); box-shadow:0 4px 14px rgba(124,58,237,.35); }
+.btn-run.purple:hover { box-shadow:0 6px 18px rgba(124,58,237,.4); }
+.btn-dl { width:100%; padding:10px; background:linear-gradient(135deg,var(--green) 0%,#059669 100%); color:#fff; font-size:13px; font-weight:600; border:none; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(16,185,129,.3); text-decoration:none; margin-top:.6rem; animation:popIn .3s ease; }
+.btn-dl:hover { opacity:.9; }
+.btn-dl:disabled { opacity:.5; cursor:not-allowed; }
+@keyframes popIn { from{transform:scale(.95);opacity:.5} to{transform:scale(1);opacity:1} }
+
+/* ── FURIPS LOADED INFO ── */
+.furips-loaded { background:#faf5ff; border:1px solid #ddd6fe; border-radius:10px; padding:.7rem 1rem; margin-bottom:.9rem; display:none; }
+.furips-loaded-title { font-size:11px; font-weight:600; color:#6d28d9; text-transform:uppercase; letter-spacing:.06em; margin-bottom:.4rem; }
+.furips-folder-name { font-size:13px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:7px; }
+.furips-file-count { font-size:11px; color:var(--muted); margin-top:3px; }
+
+/* ── PREVIEW ── */
+.prev-list { max-height:180px; overflow-y:auto; }
+.prev-list::-webkit-scrollbar { width:4px; }
+.prev-list::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+.prev-row { display:flex; align-items:center; gap:8px; padding:6px 1rem; border-bottom:1px solid var(--border); font-size:12px; font-family:monospace; }
+.prev-row:last-child { border-bottom:none; }
+.prev-old { color:var(--faint); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.prev-arr { color:var(--border2); flex-shrink:0; font-size:10px; }
+.prev-new { color:var(--indigo); font-weight:700; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.prev-new.purple { color:var(--purple); }
+.prev-badge { font-size:10px; padding:2px 7px; border-radius:20px; flex-shrink:0; background:var(--indigo-l); color:var(--indigo); font-weight:600; font-family:sans-serif; }
+.prev-badge.purple { background:var(--purple-l); color:var(--purple); }
+.prev-empty { padding:2rem 1rem; text-align:center; font-size:12px; color:var(--faint); }
+
+/* ── LOG TERMINAL ── */
+.log-card { display:flex; flex-direction:column; }
+.log-topbar { display:flex; align-items:center; gap:6px; padding:8px 12px; background:#161b27; border-bottom:1px solid rgba(255,255,255,.06); }
+.mac { width:11px; height:11px; border-radius:50%; }
+.log-title { font-size:11px; color:#475569; font-family:monospace; margin-left:4px; flex:1; }
+.log-action { background:none; border:none; color:#334155; cursor:pointer; font-size:12px; transition:color .15s; padding:0 4px; }
+.log-action:hover { color:#94a3b8; }
+.logbox { background:var(--log-bg); font-family:'SF Mono','Fira Code',monospace; font-size:.72rem; line-height:1.6; height:240px; overflow-y:auto; padding:.5rem 0; }
+.logbox::-webkit-scrollbar { width:5px; }
+.logbox::-webkit-scrollbar-track { background:#1e293b; }
+.logbox::-webkit-scrollbar-thumb { background:#2d3748; border-radius:3px; }
+.ll { display:flex; gap:10px; padding:1px 12px; border-left:3px solid transparent; }
+.ll .ts { color:#2d3748; flex-shrink:0; }
+.ll.info { border-left-color:#3b82f6; } .ll.info .lm { color:#93c5fd; }
+.ll.ok   { border-left-color:#10b981; } .ll.ok   .lm { color:#a7f3d0; }
+.ll.warn { border-left-color:#f59e0b; } .ll.warn .lm { color:#fde68a; }
+.ll.error{ border-left-color:#ef4444; } .ll.error .lm { color:#fca5a5; }
+.ll.head { border-left-color:transparent; } .ll.head .lm { color:#e2e8f0; font-weight:600; }
+.cursor { display:inline-block; width:7px; height:12px; background:#10b981; border-radius:1px; animation:blink .8s step-end infinite; vertical-align:middle; margin-left:2px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── TOAST ── */
+#toastBox { position:fixed; bottom:1.5rem; right:1.5rem; z-index:999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast { pointer-events:auto; border-radius:10px; padding:9px 14px; font-size:13px; font-weight:500; display:flex; align-items:center; gap:8px; border:1px solid; box-shadow:var(--shadow-md); animation:popIn .25s ease; }
+.toast.ok    { background:#f0fdf4; border-color:#bbf7d0; color:#065f46; }
+.toast.warn  { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+.toast.error { background:#fff1f2; border-color:#fecaca; color:#991b1b; }
+.toast.info  { background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
 </style>
 </head>
 <body>
@@ -487,7 +241,6 @@ body {
     <div class="topbar-sub">Servicios Integrales en Sistemas</div>
   </div>
 
-  <!-- App switcher -->
   <div class="app-switcher">
     <button class="app-tab active" id="tabRenom" onclick="switchApp('renom')">
       <i class="fas fa-magic"></i> RenomBot
@@ -497,7 +250,6 @@ body {
     </button>
   </div>
 
-  <!-- B2 status pill -->
   <div class="topbar-b2" id="b2Pill" style="display:none">
     <div class="b2-dot" id="b2Dot"></div>
     <span id="b2Label">Backblaze</span>
@@ -509,15 +261,15 @@ body {
   </div>
 </header>
 
-<!-- ══════════════ RENOMBOT APP ══════════════ -->
+<!-- TOAST (global, fuera de ambas apps) -->
+<div id="toastBox"></div>
+
+<!-- ══════════ APP: RENOMBOT ══════════ -->
 <div id="renomApp">
-<!-- LAYOUT -->
 <div class="layout">
 
-  <!-- IZQUIERDA -->
   <div>
-
-    <!-- HERO robot + stats -->
+    <!-- Hero robot -->
     <div class="hero">
       <svg id="robotSvg" viewBox="0 0 120 158" xmlns="http://www.w3.org/2000/svg">
         <line x1="60" y1="22" x2="60" y2="11" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
@@ -528,10 +280,8 @@ body {
         <rect x="37" y="31" width="46" height="22" rx="7" fill="#1e1b4b"/>
         <circle id="eyeL" cx="49" cy="42" r="5.5" fill="#6366f1"/>
         <circle id="eyeR" cx="71" cy="42" r="5.5" fill="#6366f1"/>
-        <circle cx="49" cy="42" r="2.8" fill="#1d4ed8"/>
-        <circle cx="71" cy="42" r="2.8" fill="#1d4ed8"/>
-        <circle cx="51" cy="40" r="1" fill="white" opacity=".6"/>
-        <circle cx="73" cy="40" r="1" fill="white" opacity=".6"/>
+        <circle cx="49" cy="42" r="2.8" fill="#1d4ed8"/><circle cx="71" cy="42" r="2.8" fill="#1d4ed8"/>
+        <circle cx="51" cy="40" r="1" fill="white" opacity=".6"/><circle cx="73" cy="40" r="1" fill="white" opacity=".6"/>
         <rect x="44" y="55" width="32" height="7" rx="3.5" fill="#1e1b4b"/>
         <line x1="52" y1="55" x2="52" y2="62" stroke="#312e81" stroke-width="1"/>
         <line x1="60" y1="55" x2="60" y2="62" stroke="#312e81" stroke-width="1"/>
@@ -559,10 +309,8 @@ body {
         <text id="chestTxt" x="60" y="121" text-anchor="middle" font-family="monospace" font-size="5" fill="#6366f1" opacity=".9">LISTO</text>
         <rect x="4" y="80" width="14" height="44" rx="7" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
         <rect x="102" y="80" width="14" height="44" rx="7" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
-        <rect x="35" y="134" width="18" height="17" rx="5" fill="#312e81"/>
-        <rect x="67" y="134" width="18" height="17" rx="5" fill="#312e81"/>
-        <rect x="32" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/>
-        <rect x="65" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/>
+        <rect x="35" y="134" width="18" height="17" rx="5" fill="#312e81"/><rect x="67" y="134" width="18" height="17" rx="5" fill="#312e81"/>
+        <rect x="32" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/><rect x="65" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/>
       </svg>
       <div class="hero-info">
         <div class="hero-msg" id="heroMsg">Esperando elementos</div>
@@ -574,128 +322,93 @@ body {
       </div>
     </div>
 
-    <!-- CARGA -->
+    <!-- Card carga -->
     <div class="card">
       <div class="card-head"><i class="fas fa-upload"></i> Cargar elementos</div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:.8rem">
-
-        <!-- Drop -->
         <div class="drop-zone" id="dropZone"
           ondragover="doDrag(event,'over')" ondragleave="doDrag(event,'leave')" ondrop="doDrag(event,'drop')">
           <i class="fas fa-cloud-upload-alt"></i>
           <p>Arrastrá carpetas o ZIPs aquí</p>
           <small>Carpetas y ZIPs — sin diálogos de confirmación</small>
         </div>
-
-        <!-- Botones agregar -->
-        <div class="add-row" style="grid-template-columns:1fr 1fr">
-          <label class="btn-add" title="Arrastrá la carpeta al área de arriba para evitar el diálogo del browser">
-            <i class="fas fa-folder"></i> Carpeta
-            <input type="file" id="folderInput" webkitdirectory class="hidden" style="display:none">
+        <div class="add-row">
+          <label class="btn-add">
+            <i class="fas fa-folder" style="color:#f59e0b"></i> Carpeta
+            <input type="file" id="folderInput" webkitdirectory style="display:none">
           </label>
           <label class="btn-add">
-            <i class="fas fa-file-zipper"></i> ZIP(s)
-            <input type="file" id="zipInput" multiple accept=".zip" class="hidden" style="display:none">
+            <i class="fas fa-file-zipper" style="color:#8b5cf6"></i> ZIP(s)
+            <input type="file" id="zipInput" multiple accept=".zip" style="display:none">
           </label>
         </div>
-
-        <!-- Chips -->
         <div class="chips-section">
           <div class="chips-header">
             <span><i class="fas fa-layer-group" style="color:var(--faint);margin-right:5px"></i>Elementos cargados</span>
-            <button class="btn-clear" id="clearBtn"><i class="fas fa-trash-alt" style="margin-right:4px"></i>Limpiar todo</button>
+            <button class="btn-clear-txt" id="clearBtn"><i class="fas fa-trash-alt" style="margin-right:4px"></i>Limpiar todo</button>
           </div>
-          <div class="chips-wrap" id="chips">
-            <span class="chips-empty">Sin elementos</span>
-          </div>
+          <div class="chips-wrap" id="chips"><span class="chips-empty">Sin elementos</span></div>
         </div>
 
-        <!-- ── Backblaze panel ── -->
+        <!-- B2 panel -->
         <div class="b2-panel">
           <div class="b2-panel-head">
-            <i class="fab fa-aws"></i>
-            <span>Backblaze B2</span>
+            <i class="fab fa-aws"></i><span>Backblaze B2</span>
             <span class="b2-badge" id="b2Badge">--</span>
           </div>
           <div class="b2-stats">
-            <div class="b2-stat">
-              <div class="n" id="b2Files">--</div>
-              <div class="l">Archivos</div>
-            </div>
-            <div class="b2-stat">
-              <div class="n" id="b2Size">--</div>
-              <div class="l">MB usados</div>
-            </div>
-            <div class="b2-stat">
-              <div class="n" id="b2Folders">--</div>
-              <div class="l">Carpetas</div>
-            </div>
+            <div class="b2-stat"><div class="n" id="b2Files">--</div><div class="l">Archivos</div></div>
+            <div class="b2-stat"><div class="n" id="b2Size">--</div><div class="l">MB usados</div></div>
+            <div class="b2-stat"><div class="n" id="b2Folders">--</div><div class="l">Carpetas</div></div>
           </div>
           <button class="btn-clear-b2" id="clearB2Btn" onclick="clearB2()">
-            <i class="fas fa-trash-alt"></i>
-            Limpiar Todo (Backblaze + Memoria)
+            <i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)
           </button>
         </div>
 
-        <!-- Botón principal -->
-        <button class="btn-run" id="runBtn">
-          <i class="fas fa-magic"></i> Renombrar y descargar ZIP
-        </button>
+        <button class="btn-run" id="runBtn"><i class="fas fa-magic"></i> Renombrar y descargar ZIP</button>
         <button class="btn-dl" id="dlBtn" style="display:none" onclick="descargarZIP()">
           <i class="fas fa-download"></i> Descargar Renombrado.zip
         </button>
-
       </div>
     </div>
-
   </div>
 
-  <!-- DERECHA -->
   <div style="display:flex;flex-direction:column;gap:1.25rem">
-
-    <!-- PREVIEW -->
+    <!-- Preview -->
     <div class="card">
-      <div class="card-head">
-        <i class="fas fa-eye"></i> Vista previa — carpetas renombradas
-        <span class="cnt" id="prevCount">0 carpetas</span>
-      </div>
-      <div class="prev-list" id="prevList">
-        <div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div>
-      </div>
+      <div class="card-head"><i class="fas fa-eye"></i> Vista previa — carpetas renombradas<span class="cnt" id="prevCount">0 carpetas</span></div>
+      <div class="prev-list" id="prevList"><div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div></div>
     </div>
-
-    <!-- LOG -->
+    <!-- Log -->
     <div class="card log-card" style="overflow:hidden">
       <div class="log-topbar">
         <div class="mac" style="background:#ff5f57"></div>
         <div class="mac" style="background:#febc2e"></div>
         <div class="mac" style="background:#28c840"></div>
         <span class="log-title">renombot — output</span>
-        <button class="log-action" onclick="limpiarLog()" title="Limpiar"><i class="fas fa-trash-alt"></i></button>
-        <button class="log-action" onclick="copiarLog()" title="Copiar"><i class="fas fa-copy"></i></button>
+        <button class="log-action" onclick="limpiarLog('logBoxR')" title="Limpiar"><i class="fas fa-trash-alt"></i></button>
+        <button class="log-action" onclick="copiarLog('logBoxR')" title="Copiar"><i class="fas fa-copy"></i></button>
       </div>
-      <div id="logBox">
+      <div id="logBoxR" class="logbox">
         <div class="ll info"><span class="ts">--:--:--</span><span class="lm">RenomBot listo. Arrastra carpetas o ZIPs. <span class="cursor"></span></span></div>
       </div>
     </div>
-
   </div>
-</div>
 
+</div>
 </div><!-- /renomApp -->
 
-<!-- ══════════════ FURIPSBOT APP ══════════════ -->
-<div id="furipsApp">
+<!-- ══════════ APP: FURIPSBOT ══════════ -->
+<div id="furipsApp" style="display:none">
 <div class="layout">
 
-  <!-- IZQUIERDA -->
   <div>
-
-    <!-- HERO -->
+    <!-- Hero FURIPS -->
     <div class="furips-hero">
-      <div class="furips-hero-icon">📄</div>
+      <div class="furips-icon">📄</div>
       <div class="furips-info">
-        <div class="furips-msg" id="furipsHeroMsg">Esperando carpeta de facturas</div>
+        <div class="furips-msg" id="furipsMsg">Esperando carpeta de facturas</div>
         <div class="furips-stats">
           <div class="fstat"><div class="n" id="fTotal">0</div><div class="l">Facturas</div></div>
           <div class="fstat g"><div class="n" id="fOk">0</div><div class="l">OK</div></div>
@@ -704,1024 +417,113 @@ body {
       </div>
     </div>
 
-    <!-- CARGA -->
+    <!-- Card carga FURIPS -->
     <div class="card">
-      <div class="card-head"><i class="fas fa-folder-open"></i> Cargar carpeta de facturas</div>
+      <div class="card-head"><i class="fas fa-folder-open" style="color:var(--purple)"></i> Cargar carpeta de facturas</div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:.8rem">
-
-        <div class="furips-drop-zone" id="furipsDrop"
-          ondragover="furipsDrag(event,'over')" ondragleave="furipsDrag(event,'leave')" ondrop="furipsDrag(event,'drop')">
+        <div class="drop-zone purple" id="furipsDrop"
+          ondragover="furipDrag(event,'over')" ondragleave="furipDrag(event,'leave')" ondrop="furipDrag(event,'drop')">
           <i class="fas fa-folder-tree"></i>
           <p>Arrastrá la carpeta de facturas aquí</p>
-          <small>Estructura: carpeta → subcarpetas con número de factura → archivos FURIPS1 y FURIPS2</small>
+          <small>Estructura: carpeta raíz → subcarpetas con número de factura → FURIPS1 y FURIPS2</small>
         </div>
-
-        <div class="add-row" style="grid-template-columns:1fr 1fr">
-          <label class="btn-add" title="Selecciona la carpeta principal con las subcarpetas de facturas">
-            <i class="fas fa-folder" style="color:#8b5cf6"></i> Carpeta
-            <input type="file" id="furipsFolderInput" webkitdirectory style="display:none">
+        <div class="add-row">
+          <label class="btn-add p">
+            <i class="fas fa-folder" style="color:var(--purple)"></i> Carpeta
+            <input type="file" id="furipFolderInput" webkitdirectory style="display:none">
           </label>
-          <label class="btn-add">
-            <i class="fas fa-file-zipper" style="color:#8b5cf6"></i> ZIP
+          <label class="btn-add p">
+            <i class="fas fa-file-zipper" style="color:var(--purple)"></i> ZIP
             <input type="file" id="furipZipInput" accept=".zip" style="display:none">
           </label>
         </div>
 
         <!-- Info carpeta cargada -->
-        <div class="furips-loaded" id="furipLoadedInfo">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="furips-loaded" id="furipLoaded">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
             <div class="furips-loaded-title"><i class="fas fa-check-circle" style="color:#10b981;margin-right:5px"></i>Cargado</div>
-            <button class="furips-clear" onclick="furipsClear()"><i class="fas fa-trash-alt"></i> Limpiar</button>
+            <button class="btn-clear-txt" onclick="furipClear()"><i class="fas fa-trash-alt"></i> Limpiar</button>
           </div>
-          <div class="furips-folder-name"><i class="fas fa-folder" style="color:#8b5cf6"></i><span id="furipFolderName">—</span></div>
+          <div class="furips-folder-name"><i class="fas fa-folder" style="color:var(--purple)"></i><span id="furipFolderName">—</span></div>
           <div class="furips-file-count" id="furipFileCount">0 archivos en 0 facturas</div>
         </div>
 
-        <button class="btn-run-furips" id="furipRunBtn">
-          <i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP
-        </button>
-        <button class="btn-dl-furips" id="furipDlBtn" style="display:none" onclick="furipDescargar()">
+        <button class="btn-run purple" id="furipRunBtn"><i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP</button>
+        <button class="btn-dl" id="furipDlBtn" style="display:none" onclick="furipDescargar()">
           <i class="fas fa-download"></i> Descargar FURIPS_Renombrados.zip
         </button>
-
       </div>
     </div>
-
   </div>
 
-  <!-- DERECHA -->
   <div style="display:flex;flex-direction:column;gap:1.25rem">
-
-    <!-- PREVIEW facturas -->
+    <!-- Preview FURIPS -->
     <div class="card">
-      <div class="card-head">
-        <i class="fas fa-list-check"></i> Vista previa — archivos a renombrar
-        <span class="cnt" id="furipPrevCount">0 archivos</span>
-      </div>
-      <div class="prev-list" id="furipPrevList" style="max-height:200px">
-        <div class="prev-empty">Carga una carpeta para ver la vista previa</div>
-      </div>
+      <div class="card-head"><i class="fas fa-list-check" style="color:var(--purple)"></i> Vista previa — archivos a renombrar<span class="cnt" id="furipPrevCount">0 archivos</span></div>
+      <div class="prev-list" id="furipPrevList"><div class="prev-empty">Carga una carpeta para ver la vista previa</div></div>
     </div>
-
-    <!-- LOG -->
+    <!-- Log FURIPS -->
     <div class="card log-card" style="overflow:hidden">
       <div class="log-topbar">
         <div class="mac" style="background:#ff5f57"></div>
         <div class="mac" style="background:#febc2e"></div>
         <div class="mac" style="background:#28c840"></div>
         <span class="log-title">furipsbot — output</span>
-        <button class="log-action" onclick="furipLimpiarLog()" title="Limpiar"><i class="fas fa-trash-alt"></i></button>
-        <button class="log-action" onclick="furipCopiarLog()" title="Copiar"><i class="fas fa-copy"></i></button>
+        <button class="log-action" onclick="limpiarLog('logBoxF')" title="Limpiar"><i class="fas fa-trash-alt"></i></button>
+        <button class="log-action" onclick="copiarLog('logBoxF')" title="Copiar"><i class="fas fa-copy"></i></button>
       </div>
-      <div id="furipLogBox">
+      <div id="logBoxF" class="logbox">
         <div class="ll info"><span class="ts">--:--:--</span><span class="lm">FURIPSBot listo. Carga una carpeta de facturas. <span class="cursor"></span></span></div>
       </div>
     </div>
-
   </div>
+
 </div>
 </div><!-- /furipsApp -->
 
-<div id="toastBox"></div>
-
 <script>
-/* ═══════════════════════════════════════════════════════════
-   RenomBot · SIS — Frontend v3.1 (Optimizado)
-   ═══════════════════════════════════════════════════════════
-   FIX: manejo de 410 (sesión expirada) con reinicio automático de jobId
-   FIX: fallback de seguridad reducido a 45s (más reactivo)
-   FIX: clearB2 limpia también el fallback timeout pendiente
-   FIX: removeRoot usa comparación exacta de raíz normalizada
-   FIX: logUI limita a 300 líneas para no saturar el DOM (era 500)
-   FIX: toast con límite de 5 simultáneos para evitar scroll-off pantalla
-   FIX: esc() usa textContent para prevenir XSS en cualquier path
-   FIX: animGear usa cancelAnimationFrame para no acumular frames
-   ═══════════════════════════════════════════════════════════ */
+'use strict';
+/* ═══════════════════════════════════════════════
+   SIS · Herramientas — v3.4
+   ═══════════════════════════════════════════════ */
 
-let filesData   = [];
-let evtSource   = null;
-let isUploading = false;
-let jobId       = null;
-let initPromise = null;
-let _gearRafId  = null;   // FIX: referencia al requestAnimationFrame activo
-
-/* ── Inicialización del job (con cache) ─────────────── */
-async function initJob() {
-  if (initPromise) return initPromise;
-  initPromise = (async () => {
-    try {
-      const res = await fetch('/job/new', { method: 'POST' });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      jobId = data.job_id;
-      console.log('[init] jobId:', jobId);
-    } catch (e) {
-      console.error('[init] error:', e);
-      toast('No se pudo conectar: ' + e.message, 'error');
-      // Reintentar en 3s
-      setTimeout(() => { initPromise = null; initJob(); }, 3000);
-    }
-  })();
-  return initPromise;
+// ── App switcher ──────────────────────────────
+function switchApp(app) {
+  document.getElementById('renomApp').style.display  = (app === 'renom')  ? 'block' : 'none';
+  document.getElementById('furipsApp').style.display = (app === 'furips') ? 'block' : 'none';
+  document.getElementById('tabRenom').className  = 'app-tab' + (app === 'renom'  ? ' active' : '');
+  document.getElementById('tabFurips').className = 'app-tab' + (app === 'furips' ? ' active furips' : '');
 }
 
-/* ── Init de la página ──────────────────────────────── */
-document.addEventListener('DOMContentLoaded', () => {
-  initJob();
-  fetchB2Status();
-  setInterval(fetchB2Status, 30000);
-});
-
-/* ── Suprimir navegación accidental durante upload ──── */
-window.addEventListener('beforeunload', e => {
-  if (isUploading) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
-
-/* ── B2 status ──────────────────────────────────────── */
-async function fetchB2Status() {
-  try {
-    const r = await fetch('/b2-status');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const d = await r.json();
-    const pill  = document.getElementById('b2Pill');
-    const dot   = document.getElementById('b2Dot');
-    const label = document.getElementById('b2Label');
-    const badge = document.getElementById('b2Badge');
-    const files = document.getElementById('b2Files');
-    const size  = document.getElementById('b2Size');
-    const fldrs = document.getElementById('b2Folders');
-    pill.style.display = 'flex';
-    if (d.configured && !d.error) {
-      dot.className     = 'b2-dot connected';
-      label.textContent = 'B2 ✓';
-      badge.textContent = `${d.file_count} archivos`;
-      files.textContent = d.file_count;
-      size.textContent  = d.total_mb ?? '0';
-      fldrs.textContent = d.files
-        ? new Set(d.files.map(f => f.name.split('/')[0])).size
-        : 0;
-    } else {
-      dot.className     = 'b2-dot error';
-      label.textContent = 'B2 ✗';
-      badge.textContent = d.error ? 'Error' : 'Sin config';
-      files.textContent = '—';
-      size.textContent  = '—';
-      fldrs.textContent = '—';
-    }
-  } catch { /* silenciar errores de red */ }
-}
-
-/* ── Limpiar B2 (background) ────────────────────────── */
-async function clearB2() {
-  const btn = document.getElementById('clearB2Btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Limpiando...';
-
-  // Limpiar estado local
-  filesData = [];
-  render();
-  document.getElementById('dlBtn').style.display = 'none';
-  document.getElementById('sOk').textContent  = '0';
-  document.getElementById('sErr').textContent = '0';
-
-  try {
-    const r = await fetch('/clear-b2', { method: 'POST' });
-    const d = await r.json();
-    if (d.status === 'already_running') {
-      toast('Ya hay una limpieza en curso', 'warn');
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
-      return;
-    }
-    logUI('🗑 Limpiando Backblaze...', 'info');
-
-    const pollClear = async () => {
-      try {
-        const s = await fetch('/clear-b2/status').then(r => r.json());
-        if (s.running) { setTimeout(pollClear, 1500); return; }
-        const res = s.last_result;
-        if (res) {
-          if (res.ok) {
-            toast(`🗑 ${res.deleted_count} archivos eliminados`, 'ok');
-            logUI(`🗑 Backblaze limpio: ${res.deleted_count} archivos`, 'ok');
-          } else {
-            toast(`⚠ Limpieza con ${res.errors.length} error(es)`, 'warn');
-            res.errors.slice(0, 3).forEach(e => logUI(`  ✗ ${e}`, 'error'));
-          }
-        }
-        fetchB2Status();
-      } catch (e) {
-        logUI('✗ Error verificando limpieza: ' + e.message, 'error');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
-      }
-    };
-    setTimeout(pollClear, 1500);
-  } catch (e) {
-    toast('✗ Error: ' + e.message, 'error');
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
-  }
-}
-
-/* ── Drag & drop ────────────────────────────────────── */
-function doDrag(e, a) {
-  e.preventDefault();
-  const dz = document.getElementById('dropZone');
-  if (a === 'over')  dz.classList.add('over');
-  if (a === 'leave') dz.classList.remove('over');
-  if (a === 'drop')  { dz.classList.remove('over'); handleDrop(e); }
-}
-
-async function traverseDir(entry, relPath) {
-  const np = relPath ? `${relPath}/${entry.name}` : entry.name;
-  if (entry.isDirectory) {
-    const reader = entry.createReader();
-    let all = [];
-    // FIX: readEntries devuelve máx 100 por llamada en Chrome; bucle hasta vacío
-    while (true) {
-      const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
-      if (!batch.length) break;
-      all = all.concat(batch);
-    }
-    for (const c of all) await traverseDir(c, np);
-  } else if (entry.isFile) {
-    const file = await new Promise(res => entry.file(res));
-    filesData.push({ path: np, file });
-  }
-}
-
-async function handleDrop(e) {
-  const items = e.dataTransfer.items;
-  let added = 0;
-  for (let i = 0; i < items.length; i++) {
-    const entry = items[i].webkitGetAsEntry();
-    if (!entry) continue;
-    if (entry.isDirectory) {
-      await traverseDir(entry, '');
-      added++;
-    } else if (entry.isFile) {
-      const file = await new Promise(res => entry.file(res));
-      if (file.name.toLowerCase().endsWith('.zip')) {
-        filesData.push({ path: file.name, file });
-        added++;
-      } else {
-        logUI(`Ignorado (no es ZIP): ${file.name}`, 'warn');
-      }
-    }
-  }
-  if (added) { render(); logUI(`${added} elemento(s) agregado(s)`, 'ok'); }
-}
-
-document.getElementById('folderInput').addEventListener('change', function () {
-  if (!this.files.length) return;
-  for (const f of this.files) filesData.push({ path: f.webkitRelativePath || f.name, file: f });
-  render(); logUI(`Carpeta agregada (${this.files.length} archivos)`, 'ok');
-  this.value = '';
-});
-
-document.getElementById('zipInput').addEventListener('change', function () {
-  let n = 0;
-  for (const f of this.files) {
-    if (f.name.toLowerCase().endsWith('.zip')) { filesData.push({ path: f.name, file: f }); n++; }
-  }
-  if (n) { render(); logUI(`${n} ZIP(s) agregado(s)`, 'ok'); }
-  this.value = '';
-});
-
-/* ── Render preview ─────────────────────────────────── */
-function isJunkSeg(s) {
-  if (!s) return true;
-  const low = s.toLowerCase();
-  if (low.startsWith('descargamasiva-')) return true;
-  if (/^\d{8,}$/.test(s)) return true;
-  if (['downloads','descargas','temp','tmp','desktop','documents'].includes(low)) return true;
-  return false;
-}
-
-/* FIX: extrae la raíz canónica de un path de forma consistente */
-function getRootOf(path) {
-  const parts = path.split('/');
-  return parts.find(p => p && !isJunkSeg(p)) || parts[0] || '';
-}
-
-function render() {
-  const chips    = document.getElementById('chips');
-  const prevList = document.getElementById('prevList');
-  const prevCnt  = document.getElementById('prevCount');
-  const sTotal   = document.getElementById('sTotal');
-
-  const roots = new Map();
-  filesData.forEach(f => {
-    const root = getRootOf(f.path);
-    if (root && !roots.has(root)) {
-      roots.set(root, { isZip: f.file.name.toLowerCase().endsWith('.zip') });
-    }
-  });
-
-  sTotal.textContent = roots.size;
-  prevCnt.textContent = roots.size + ' carpeta' + (roots.size === 1 ? '' : 's');
-  document.getElementById('heroMsg').textContent =
-    roots.size ? `${roots.size} elemento(s) cargado(s)` : 'Esperando elementos';
-
-  if (!roots.size) {
-    chips.innerHTML    = '<span class="chips-empty">Sin elementos</span>';
-    prevList.innerHTML = '<div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div>';
-    return;
-  }
-
-  chips.innerHTML = [...roots.entries()].map(([name, info]) => `
-    <div class="chip${info.isZip ? ' zip' : ''}">
-      <i class="fas ${info.isZip ? 'fa-file-zipper' : 'fa-folder'}" style="font-size:10px;color:${info.isZip ? '#8b5cf6' : '#f59e0b'}"></i>
-      <span title="${esc(name)}">${esc(name)}</span>
-      <button class="chip-x" onclick="removeRoot('${esc(name).replace(/'/g, '&#39;')}')">✕</button>
-    </div>`).join('');
-
-  prevList.innerHTML = [...roots.entries()].map(([name, info]) => {
-    const newName = renamePrev(name, info.isZip);
-    return `<div class="prev-row">
-      <span class="prev-old" title="${esc(name)}">${esc(name)}</span>
-      <span class="prev-arr">→</span>
-      <span class="prev-new">${esc(newName)}</span>
-      <span class="prev-badge">carpeta</span>
-    </div>`;
-  }).join('');
-}
-
-function renamePrev(name, isZip) {
-  let n = isZip ? name.replace(/\.zip$/i, '') : name;
-  const parts = n.split('-');
-  return parts.length > 1 ? parts[parts.length - 1] : n;
-}
-
-/* FIX: usa getRootOf() para comparación consistente con render() */
-function removeRoot(root) {
-  filesData = filesData.filter(f => getRootOf(f.path) !== root);
-  render(); logUI(`Eliminado: ${root}`, 'warn');
-}
-
-document.getElementById('clearBtn').onclick = () => {
-  filesData = []; render();
-  document.getElementById('dlBtn').style.display = 'none';
-  document.getElementById('sOk').textContent  = '0';
-  document.getElementById('sErr').textContent = '0';
-  logUI('Lista limpiada', 'info');
-};
-
-/* ── Descarga ───────────────────────────────────────── */
-async function descargarZIP() {
-  if (!jobId) { toast('Sin sesión activa', 'error'); return; }
-  const dlBtn = document.getElementById('dlBtn');
-  dlBtn.disabled = true;
-  dlBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando...';
-  try {
-    const resp = await fetch(`/download/${jobId}`);
-    // FIX: detectar 410 (sesión expirada) y avisar específicamente
-    if (resp.status === 410) {
-      toast('La sesión expiró. Recarga la página.', 'error');
-      jobId = null; initPromise = null;
-      return;
-    }
-    if (!resp.ok) throw new Error('ZIP no disponible');
-    const blob = await resp.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = 'Renombrado.zip';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast('✅ Descargando Renombrado.zip', 'ok');
-  } catch (e) {
-    toast('Error al descargar: ' + e.message, 'error');
-  } finally {
-    dlBtn.disabled = false;
-    dlBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
-  }
-}
-
-/* ── Helper: mostrar botón de descarga ──────────────── */
-function showDownloadBtn() {
-  const dlBtn = document.getElementById('dlBtn');
-  dlBtn.style.display = 'flex';
-  dlBtn.disabled = false;
-  dlBtn.innerHTML = '<i class="fas fa-download"></i> Descargar Renombrado.zip';
-}
-
-/* ── Resetear estado de ejecución ───────────────────── */
-function resetRunState() {
-  const runBtn = document.getElementById('runBtn');
-  runBtn.disabled = false;
-  runBtn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
-  isUploading = false;
-}
-
-/* ── Finalizar el job (llamado por SSE o fallback) ──── */
-let jobFinalized    = false;
-let _fallbackTimerId = null;   // FIX: referencia para cancelar el fallback
-
-async function finalizeJob() {
-  if (jobFinalized) return;
-  jobFinalized = true;
-
-  // FIX: cancelar el timer de fallback si SSE llegó a tiempo
-  if (_fallbackTimerId) {
-    clearTimeout(_fallbackTimerId);
-    _fallbackTimerId = null;
-  }
-
-  try {
-    const s = await fetch(`/status/${jobId}`).then(r => r.json());
-    if (s.expired) {
-      // FIX: sesión expirada durante el proceso (poco probable pero posible)
-      logUI('La sesión expiró durante el proceso. Recarga la página.', 'error');
-      toast('Sesión expirada', 'error');
-      jobId = null; initPromise = null;
-    } else if (s.zip_ready) {
-      showDownloadBtn();
-      setStatus('Listo', 'done');
-      try { await descargarZIP(); } catch { /* ya mostró error */ }
-    } else if (s.error) {
-      logUI(`Error: ${s.error}`, 'error');
-      toast(`Error: ${s.error}`, 'error');
-      setStatus('Error', '');
-    } else {
-      logUI('Proceso terminó sin generar ZIP', 'warn');
-      setStatus('Error', '');
-    }
-  } catch (e) {
-    logUI('Error verificando estado: ' + e.message, 'error');
-    setStatus('Error', '');
-  } finally {
-    resetRunState();
-    fetchB2Status();
-    if (evtSource) { evtSource.close(); evtSource = null; }
-  }
-}
-
-/* ── Botón Renombrar ────────────────────────────────── */
-document.getElementById('runBtn').addEventListener('click', async () => {
-  if (!filesData.length) { toast('Agrega al menos un elemento', 'warn'); return; }
-
-  // Garantizar jobId
-  if (!jobId) {
-    toast('Conectando al servidor...', 'info');
-    await initJob();
-    if (!jobId) { toast('No se pudo conectar. Recarga la página.', 'error'); return; }
-  }
-
-  const runBtn = document.getElementById('runBtn');
-  const dlBtn  = document.getElementById('dlBtn');
-
-  // Resetear estado
-  jobFinalized     = false;
-  _fallbackTimerId = null;
-  runBtn.disabled  = true;
-  runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Subiendo...';
-  dlBtn.style.display = 'none';
-  setStatus('Procesando', 'running');
-  document.getElementById('logBox').innerHTML = '';
-  document.getElementById('sOk').textContent  = '0';
-  document.getElementById('sErr').textContent = '0';
-  isUploading = true;
-
-  // 1. Conectar SSE PRIMERO (antes de mandar archivos)
-  if (evtSource) evtSource.close();
-  evtSource = new EventSource(`/stream/${jobId}`);
-
-  evtSource.onmessage = async e => {
-    let d;
-    try { d = JSON.parse(e.data); } catch { return; }
-    if (d.ping || d.connected) return;
-
-    // Sentinel: el job terminó (éxito o error)
-    if (d.msg === '__JOB_FINISHED__') {
-      await finalizeJob();
-      return;
-    }
-
-    logUI(d.msg, d.tipo);
-
-    // Actualizar contador de archivos OK desde mensaje del backend
-    const m = d.msg.match(/Listo:\s*(\d+)\s+archivos/);
-    if (m) document.getElementById('sOk').textContent = m[1];
-
-    // Contar errores en tiempo real
-    if (d.tipo === 'error') {
-      const errEl = document.getElementById('sErr');
-      errEl.textContent = parseInt(errEl.textContent || '0', 10) + 1;
-    }
-  };
-
-  evtSource.onerror = () => {
-    // EventSource reconecta automáticamente; solo logueamos
-    console.warn('[SSE] conexión interrumpida, reconectando...');
-  };
-
-  // 2. Mandar archivos
-  const fd = new FormData();
-  fd.append('job_id', jobId);
-  filesData.forEach((item, i) => {
-    fd.append(`file_${i}`, item.file, item.file.name);
-    fd.append(`path_${i}`, item.path);
-  });
-
-  try {
-    runBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
-    const res = await fetch('/run', { method: 'POST', body: fd });
-
-    // FIX: manejar 410 (sesión expirada entre /job/new y /run)
-    if (res.status === 410) {
-      const d = await res.json().catch(() => ({}));
-      logUI('Sesión expirada. Creando nueva sesión...', 'warn');
-      jobId = null; initPromise = null;
-      await initJob();
-      toast('Sesión renovada. Vuelve a intentarlo.', 'info');
-      setStatus('Listo', '');
-      resetRunState();
-      if (evtSource) { evtSource.close(); evtSource = null; }
-      return;
-    }
-
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-
-    if (data.warnings && data.warnings.length) {
-      data.warnings.forEach(w => logUI(`⚠ ${w}`, 'warn'));
-    }
-    isUploading = false;
-
-    // 3. Fallback de seguridad: si SSE no notifica en 45s, verificar status
-    // FIX: reducido de 60s a 45s para respuesta más rápida en fallos de SSE
-    _fallbackTimerId = setTimeout(async () => {
-      _fallbackTimerId = null;
-      if (jobFinalized) return;
-      console.warn('[fallback] SSE no notificó en 45s, verificando status...');
-      try {
-        const s = await fetch(`/status/${jobId}`).then(r => r.json());
-        if (s.done || s.zip_ready || s.error || s.expired) await finalizeJob();
-      } catch { /* silenciar */ }
-    }, 45000);
-
-  } catch (err) {
-    logUI(`Error: ${err.message}`, 'error');
-    toast(`Error: ${err.message}`, 'error');
-    setStatus('Error', '');
-    resetRunState();
-    if (evtSource) { evtSource.close(); evtSource = null; }
-  }
-});
-
-/* ── UI helpers ─────────────────────────────────────── */
-function setStatus(txt, state) {
-  const dot = document.getElementById('sdot');
-  const lbl = document.getElementById('sLabel');
-  lbl.textContent = txt;
-  dot.className = 'sdot' + (state ? ' ' + state : '');
-  const ct = document.getElementById('chestTxt');
-  const gg = document.getElementById('gearGroup');
-  if (state === 'running') {
-    ct.textContent    = 'PROCESO';
-    gg.style.opacity  = '1';
-    animGear();
-  } else {
-    ct.textContent   = 'LISTO';
-    gg.style.opacity = '0';
-    // FIX: cancelar el RAF para no acumular frames
-    if (_gearRafId) { cancelAnimationFrame(_gearRafId); _gearRafId = null; }
-  }
-}
-
-/* FIX: logUI limita a 300 líneas (era 500) y usa textContent para el msg
-        para evitar XSS en mensajes que incluyan HTML */
-function logUI(msg, level = 'info') {
-  const box = document.getElementById('logBox');
-  const cur = box.querySelector('.cursor');
-  if (cur) cur.parentElement.remove();
-
-  const ts = new Date().toLocaleTimeString('es-ES', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
-  });
-  const row = document.createElement('div');
-  row.className = `ll ${level}`;
-
-  const tsSpan = document.createElement('span');
-  tsSpan.className = 'ts';
-  tsSpan.textContent = ts;
-
-  const lmSpan = document.createElement('span');
-  lmSpan.className = 'lm';
-  lmSpan.textContent = msg;  // FIX: textContent en lugar de innerHTML
-
-  row.appendChild(tsSpan);
-  row.appendChild(lmSpan);
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
-
-  // FIX: mantener máximo 300 líneas para no saturar el DOM
-  while (box.children.length > 300) box.removeChild(box.firstChild);
-}
-
-function limpiarLog() {
-  const box = document.getElementById('logBox');
-  box.innerHTML = '';
-  const row = document.createElement('div');
-  row.className = 'll info';
-  row.innerHTML = '<span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span>';
-  box.appendChild(row);
-}
-
-function copiarLog() {
-  const lines = [...document.getElementById('logBox').children]
-    .map(l => l.textContent)
-    .join('\n');
-  navigator.clipboard.writeText(lines)
-    .then(() => toast('Log copiado', 'ok'))
-    .catch(() => toast('Error al copiar', 'error'));
-}
-
-/* FIX: toast con límite de 5 simultáneos para no saturar la pantalla */
-function toast(msg, tipo = 'info') {
-  const box = document.getElementById('toastBox');
-  // Eliminar toasts más viejos si hay más de 5
-  while (box.children.length >= 5) box.removeChild(box.firstChild);
-  const d   = document.createElement('div');
-  d.className = `toast ${tipo}`;
-  const icons = {
-    ok:    'fa-check-circle',
-    error: 'fa-times-circle',
-    warn:  'fa-exclamation-triangle',
-    info:  'fa-info-circle'
-  };
-  const icon = document.createElement('i');
-  icon.className = `fas ${icons[tipo] || icons.info}`;
-  d.appendChild(icon);
-  d.appendChild(document.createTextNode(msg));  // FIX: textContent para XSS
-  box.appendChild(d);
-  setTimeout(() => { if (d.parentNode) d.remove(); }, 4000);
-}
-
-/* FIX: esc usa un elemento temporal con textContent en lugar de regex
-        para garantizar escape completo de HTML */
+// ── Shared helpers ────────────────────────────
 function esc(s) {
   const el = document.createElement('span');
   el.textContent = String(s);
   return el.innerHTML;
 }
 
-let gearAngle = 0;
-function animGear() {
-  const g  = document.getElementById('gear');
-  const gg = document.getElementById('gearGroup');
-  if (!g || gg.style.opacity === '0') {
-    _gearRafId = null;
-    return;
-  }
-  gearAngle = (gearAngle + 2) % 360;
-  g.setAttribute('transform', `rotate(${gearAngle},60,41)`);
-  _gearRafId = requestAnimationFrame(animGear);
+function toast(msg, tipo) {
+  tipo = tipo || 'info';
+  const box = document.getElementById('toastBox');
+  while (box.children.length >= 5) box.removeChild(box.firstChild);
+  const d = document.createElement('div');
+  d.className = 'toast ' + tipo;
+  const icons = {ok:'fa-check-circle',error:'fa-times-circle',warn:'fa-exclamation-triangle',info:'fa-info-circle'};
+  d.innerHTML = '<i class="fas ' + (icons[tipo]||icons.info) + '"></i>';
+  d.appendChild(document.createTextNode(msg));
+  box.appendChild(d);
+  setTimeout(function(){ if(d.parentNode) d.remove(); }, 4000);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   App Switcher
-   ═══════════════════════════════════════════════════════════ */
-function switchApp(app) {
-  document.getElementById('renomApp').style.display   = app === 'renom'  ? 'block' : 'none';
-  document.getElementById('furipsApp').style.display  = app === 'furips' ? 'block' : 'none';
-  document.getElementById('tabRenom').classList.toggle('active',  app === 'renom');
-  document.getElementById('tabFurips').classList.toggle('active', app === 'furips');
-}
-
-/* ═══════════════════════════════════════════════════════════
-   FURIPSBot — Frontend
-   ═══════════════════════════════════════════════════════════ */
-let furipFiles  = [];   // [{path, file}]
-let furipJobId  = null;
-let furipInitPr = null;
-let furipEvt    = null;
-let furipUploading = false;
-let furipFinalized = false;
-let furipFallbackId = null;
-let furipGearRafId  = null;
-
-async function furipInitJob() {
-  if (furipInitPr) return furipInitPr;
-  furipInitPr = (async () => {
-    try {
-      const res = await fetch('/job/new', { method: 'POST' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      furipJobId = (await res.json()).job_id;
-    } catch (e) {
-      toast('FURIPSBot: no se pudo conectar: ' + e.message, 'error');
-      setTimeout(() => { furipInitPr = null; furipInitJob(); }, 3000);
-    }
-  })();
-  return furipInitPr;
-}
-
-// Iniciar job de FURIPSBot en segundo plano al cargar
-document.addEventListener('DOMContentLoaded', () => { furipInitJob(); });
-
-/* ── Drag & drop ── */
-function furipsDrag(e, a) {
-  e.preventDefault();
-  const dz = document.getElementById('furipsDrop');
-  if (a === 'over')  dz.classList.add('over');
-  if (a === 'leave') dz.classList.remove('over');
-  if (a === 'drop')  { dz.classList.remove('over'); furipHandleDrop(e); }
-}
-
-async function furipTraverseDir(entry, relPath) {
-  const np = relPath ? `${relPath}/${entry.name}` : entry.name;
-  if (entry.isDirectory) {
-    const reader = entry.createReader();
-    let all = [];
-    while (true) {
-      const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
-      if (!batch.length) break;
-      all = all.concat(batch);
-    }
-    for (const c of all) await furipTraverseDir(c, np);
-  } else if (entry.isFile) {
-    const file = await new Promise(res => entry.file(res));
-    furipFiles.push({ path: np, file });
-  }
-}
-
-async function furipHandleDrop(e) {
-  furipFiles = [];
-  const items = e.dataTransfer.items;
-  for (let i = 0; i < items.length; i++) {
-    const entry = items[i].webkitGetAsEntry();
-    if (!entry) continue;
-    if (entry.isDirectory) {
-      await furipTraverseDir(entry, '');
-    } else if (entry.isFile) {
-      const file = await new Promise(res => entry.file(res));
-      if (file.name.toLowerCase().endsWith('.zip')) {
-        furipFiles.push({ path: file.name, file });
-      }
-    }
-  }
-  furipRender();
-  if (furipFiles.length) furipLogUI(`${furipFiles.length} archivos cargados`, 'ok');
-}
-
-document.getElementById('furipsFolderInput').addEventListener('change', function () {
-  if (!this.files.length) return;
-  furipFiles = [];
-  for (const f of this.files) furipFiles.push({ path: f.webkitRelativePath || f.name, file: f });
-  furipRender();
-  furipLogUI(`Carpeta cargada: ${this.files.length} archivos`, 'ok');
-  this.value = '';
-});
-
-document.getElementById('furipZipInput').addEventListener('change', function () {
-  if (!this.files.length) return;
-  furipFiles = [];
-  furipFiles.push({ path: this.files[0].name, file: this.files[0] });
-  furipRender();
-  furipLogUI(`ZIP cargado: ${this.files[0].name}`, 'ok');
-  this.value = '';
-});
-
-/* ── Render preview ── */
-function furipRender() {
-  const info     = document.getElementById('furipLoadedInfo');
-  const prevList = document.getElementById('furipPrevList');
-  const prevCnt  = document.getElementById('furipPrevCount');
-  const fTotal   = document.getElementById('fTotal');
-  const heroMsg  = document.getElementById('furipsHeroMsg');
-
-  if (!furipFiles.length) {
-    info.style.display = 'none';
-    fTotal.textContent = '0';
-    heroMsg.textContent = 'Esperando carpeta de facturas';
-    prevList.innerHTML = '<div class="prev-empty">Carga una carpeta para ver la vista previa</div>';
-    prevCnt.textContent = '0 archivos';
-    document.getElementById('furipDlBtn').style.display = 'none';
-    return;
-  }
-
-  // Agrupar por factura (segundo segmento de la ruta)
-  const facturas = new Map();
-  furipFiles.forEach(f => {
-    const parts = f.path.split('/').filter(p => p);
-    if (parts.length >= 2) {
-      const factura  = parts[parts.length - 2];
-      const filename = parts[parts.length - 1];
-      if (!facturas.has(factura)) facturas.set(factura, []);
-      facturas.get(factura).push(filename);
-    }
-  });
-
-  // Nombre de carpeta raíz
-  const rootName = furipFiles[0]
-    ? (furipFiles[0].path.split('/').filter(p=>p)[0] || '—')
-    : '—';
-  document.getElementById('furipFolderName').textContent = rootName;
-  document.getElementById('furipFileCount').textContent =
-    `${furipFiles.length} archivos en ${facturas.size} factura${facturas.size !== 1 ? 's' : ''}`;
-  info.style.display = 'block';
-
-  fTotal.textContent = facturas.size;
-  heroMsg.textContent = `${facturas.size} factura${facturas.size !== 1 ? 's' : ''} cargada${facturas.size !== 1 ? 's' : ''}`;
-
-  // Vista previa: mostrar primeros 30 renombramientos
-  const rows = [];
-  let shown = 0;
-  for (const [factura, files] of facturas) {
-    for (const fname of files) {
-      if (shown >= 30) break;
-      const dot = fname.lastIndexOf('.');
-      const stem = dot > -1 ? fname.slice(0, dot) : fname;
-      const ext  = dot > -1 ? fname.slice(dot) : '';
-      const newName = `${stem}_${factura}${ext}`;
-      rows.push(`<div class="prev-row">
-        <span class="prev-old" title="${esc(fname)}">${esc(fname)}</span>
-        <span class="prev-arr">→</span>
-        <span class="prev-new">${esc(newName)}</span>
-        <span class="prev-badge">${esc(factura)}</span>
-      </div>`);
-      shown++;
-    }
-    if (shown >= 30) break;
-  }
-  if (furipFiles.length > shown) {
-    rows.push(`<div class="prev-empty" style="padding:.5rem 1rem">… y ${furipFiles.length - shown} archivos más</div>`);
-  }
-  prevList.innerHTML = rows.join('');
-  prevCnt.textContent = `${furipFiles.length} archivos`;
-}
-
-function furipsClear() {
-  furipFiles = [];
-  furipRender();
-  document.getElementById('fOk').textContent  = '0';
-  document.getElementById('fErr').textContent = '0';
-  furipLogUI('Lista limpiada', 'info');
-}
-
-/* ── Descarga ── */
-async function furipDescargar() {
-  if (!furipJobId) { toast('Sin sesión activa', 'error'); return; }
-  const btn = document.getElementById('furipDlBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando...';
-  try {
-    const resp = await fetch(`/download/${furipJobId}`);
-    if (resp.status === 410) { toast('Sesión expirada. Recarga la página.', 'error'); furipJobId = null; furipInitPr = null; return; }
-    if (!resp.ok) throw new Error('ZIP no disponible');
-    const blob = await resp.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = 'FURIPS_Renombrados.zip';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast('✅ Descargando FURIPS_Renombrados.zip', 'ok');
-  } catch (e) {
-    toast('Error al descargar: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-download"></i> Descargar FURIPS_Renombrados.zip';
-  }
-}
-
-/* ── Finalizar job FURIPS ── */
-async function furipFinalizeJob() {
-  if (furipFinalized) return;
-  furipFinalized = true;
-  if (furipFallbackId) { clearTimeout(furipFallbackId); furipFallbackId = null; }
-  try {
-    const s = await fetch(`/status/${furipJobId}`).then(r => r.json());
-    if (s.expired) { toast('Sesión expirada', 'error'); furipJobId = null; furipInitPr = null; }
-    else if (s.zip_ready) {
-      document.getElementById('furipDlBtn').style.display = 'flex';
-      setStatus('Listo', 'done');
-      try { await furipDescargar(); } catch {}
-    } else if (s.error) {
-      furipLogUI(`Error: ${s.error}`, 'error');
-      toast(`Error: ${s.error}`, 'error');
-      setStatus('Error', '');
-    } else {
-      furipLogUI('Proceso terminó sin generar ZIP', 'warn');
-      setStatus('Error', '');
-    }
-  } catch (e) {
-    furipLogUI('Error verificando estado: ' + e.message, 'error');
-    setStatus('Error', '');
-  } finally {
-    const btn = document.getElementById('furipRunBtn');
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP';
-    furipUploading = false;
-    if (furipEvt) { furipEvt.close(); furipEvt = null; }
-  }
-}
-
-/* ── Botón Renombrar FURIPS ── */
-document.getElementById('furipRunBtn').addEventListener('click', async () => {
-  if (!furipFiles.length) { toast('Carga una carpeta primero', 'warn'); return; }
-
-  if (!furipJobId) {
-    toast('Conectando...', 'info');
-    await furipInitJob();
-    if (!furipJobId) { toast('No se pudo conectar. Recarga la página.', 'error'); return; }
-  }
-
-  const btn   = document.getElementById('furipRunBtn');
-  const dlBtn = document.getElementById('furipDlBtn');
-
-  furipFinalized  = false;
-  furipFallbackId = null;
-  btn.disabled    = true;
-  btn.innerHTML   = '<i class="fas fa-spinner fa-pulse"></i> Subiendo...';
-  dlBtn.style.display = 'none';
-  setStatus('Procesando', 'running');
-  document.getElementById('furipLogBox').innerHTML = '';
-  document.getElementById('fOk').textContent  = '0';
-  document.getElementById('fErr').textContent = '0';
-  furipUploading = true;
-
-  // Conectar SSE primero
-  if (furipEvt) furipEvt.close();
-  furipEvt = new EventSource(`/stream/${furipJobId}`);
-  furipEvt.onmessage = async e => {
-    let d; try { d = JSON.parse(e.data); } catch { return; }
-    if (d.ping || d.connected) return;
-    if (d.msg === '__JOB_FINISHED__') { await furipFinalizeJob(); return; }
-    furipLogUI(d.msg, d.tipo);
-    const m = d.msg.match(/Listo:\s*(\d+)\s+archivos/);
-    if (m) document.getElementById('fOk').textContent = m[1];
-    if (d.tipo === 'error') {
-      const el = document.getElementById('fErr');
-      el.textContent = parseInt(el.textContent || '0', 10) + 1;
-    }
-  };
-  furipEvt.onerror = () => console.warn('[FURIPS SSE] reconectando...');
-
-  // Mandar archivos
-  const fd = new FormData();
-  fd.append('job_id', furipJobId);
-  furipFiles.forEach((item, i) => {
-    fd.append(`file_${i}`, item.file, item.file.name);
-    fd.append(`path_${i}`, item.path);
-  });
-
-  try {
-    btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
-    const res  = await fetch('/furips/run', { method: 'POST', body: fd });
-    if (res.status === 410) {
-      furipJobId = null; furipInitPr = null;
-      await furipInitJob();
-      toast('Sesión renovada. Vuelve a intentarlo.', 'info');
-      setStatus('Listo', '');
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP';
-      furipUploading = false;
-      if (furipEvt) { furipEvt.close(); furipEvt = null; }
-      return;
-    }
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-    if (data.warnings && data.warnings.length) data.warnings.forEach(w => furipLogUI(`⚠ ${w}`, 'warn'));
-    furipUploading = false;
-
-    furipFallbackId = setTimeout(async () => {
-      furipFallbackId = null;
-      if (furipFinalized) return;
-      try {
-        const s = await fetch(`/status/${furipJobId}`).then(r => r.json());
-        if (s.done || s.zip_ready || s.error || s.expired) await furipFinalizeJob();
-      } catch {}
-    }, 45000);
-
-  } catch (err) {
-    furipLogUI(`Error: ${err.message}`, 'error');
-    toast(`Error: ${err.message}`, 'error');
-    setStatus('Error', '');
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP';
-    furipUploading = false;
-    if (furipEvt) { furipEvt.close(); furipEvt = null; }
-  }
-});
-
-/* ── Log FURIPS ── */
-function furipLogUI(msg, level = 'info') {
-  const box = document.getElementById('furipLogBox');
+function logUI(boxId, msg, level) {
+  level = level || 'info';
+  const box = document.getElementById(boxId);
+  if (!box) return;
   const cur = box.querySelector('.cursor');
   if (cur) cur.parentElement.remove();
-  const ts  = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const ts = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const row = document.createElement('div');
-  row.className = `ll ${level}`;
+  row.className = 'll ' + level;
   const tsSpan = document.createElement('span'); tsSpan.className = 'ts'; tsSpan.textContent = ts;
   const lmSpan = document.createElement('span'); lmSpan.className = 'lm'; lmSpan.textContent = msg;
   row.appendChild(tsSpan); row.appendChild(lmSpan);
@@ -1729,21 +531,560 @@ function furipLogUI(msg, level = 'info') {
   box.scrollTop = box.scrollHeight;
   while (box.children.length > 300) box.removeChild(box.firstChild);
 }
-function furipLimpiarLog() {
-  const box = document.getElementById('furipLogBox');
-  box.innerHTML = '';
-  const row = document.createElement('div');
-  row.className = 'll info';
-  row.innerHTML = '<span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span>';
-  box.appendChild(row);
-}
-function furipCopiarLog() {
-  const lines = [...document.getElementById('furipLogBox').children].map(l => l.textContent).join('\n');
-  navigator.clipboard.writeText(lines).then(() => toast('Log copiado', 'ok')).catch(() => toast('Error al copiar', 'error'));
+
+function limpiarLog(boxId) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  box.innerHTML = '<div class="ll info"><span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span></div>';
 }
 
-window.removeRoot  = removeRoot;
-window.furipsClear = furipsClear;
-window.switchApp   = switchApp;
+function copiarLog(boxId) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  const lines = Array.from(box.children).map(function(l){ return l.textContent; }).join('\n');
+  navigator.clipboard.writeText(lines).then(function(){ toast('Log copiado','ok'); }).catch(function(){ toast('Error al copiar','error'); });
+}
+
+function setStatus(txt, state) {
+  document.getElementById('sLabel').textContent = txt;
+  document.getElementById('sdot').className = 'sdot' + (state ? ' ' + state : '');
+  const ct = document.getElementById('chestTxt');
+  const gg = document.getElementById('gearGroup');
+  if (ct) ct.textContent = (state === 'running') ? 'PROCESO' : 'LISTO';
+  if (gg) gg.style.opacity = (state === 'running') ? '1' : '0';
+  if (state === 'running') animGear();
+  else if (_gearRaf) { cancelAnimationFrame(_gearRaf); _gearRaf = null; }
+}
+
+var _gearAngle = 0, _gearRaf = null;
+function animGear() {
+  var g  = document.getElementById('gear');
+  var gg = document.getElementById('gearGroup');
+  if (!g || !gg || gg.style.opacity === '0') { _gearRaf = null; return; }
+  _gearAngle = (_gearAngle + 2) % 360;
+  g.setAttribute('transform','rotate('+_gearAngle+',60,41)');
+  _gearRaf = requestAnimationFrame(animGear);
+}
+
+// Generic job runner (shared between both apps)
+function makeJobRunner(cfg) {
+  // cfg: { runEndpoint, downloadName, logBoxId, statOkId, statErrId, heroMsgId,
+  //        jobIdRef (obj with .v), initPromiseRef (obj with .v),
+  //        onFinalize (callback), onReset (callback) }
+  var evtSource = null, finalized = false, fallbackId = null, uploading = false;
+
+  function initJob() {
+    if (cfg.initPromiseRef.v) return cfg.initPromiseRef.v;
+    cfg.initPromiseRef.v = fetch('/job/new', {method:'POST'})
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function(d){ cfg.jobIdRef.v = d.job_id; })
+      .catch(function(e){
+        toast('No se pudo conectar: ' + e, 'error');
+        setTimeout(function(){ cfg.initPromiseRef.v = null; initJob(); }, 3000);
+      });
+    return cfg.initPromiseRef.v;
+  }
+
+  function resetRunState() {
+    cfg.onReset();
+    uploading = false;
+  }
+
+  function finalizeJob() {
+    if (finalized) return;
+    finalized = true;
+    if (fallbackId) { clearTimeout(fallbackId); fallbackId = null; }
+    fetch('/status/' + cfg.jobIdRef.v)
+      .then(function(r){ return r.json(); })
+      .then(function(s){
+        if (s.expired) {
+          toast('Sesión expirada. Recarga la página.', 'error');
+          cfg.jobIdRef.v = null; cfg.initPromiseRef.v = null;
+        } else if (s.zip_ready) {
+          cfg.onFinalize(true);
+          setStatus('Listo', 'done');
+          descargarZIPGeneric(cfg.jobIdRef.v, cfg.downloadName);
+        } else if (s.error) {
+          logUI(cfg.logBoxId, 'Error: ' + s.error, 'error');
+          toast('Error: ' + s.error, 'error');
+          setStatus('Error', '');
+          cfg.onFinalize(false);
+        } else {
+          logUI(cfg.logBoxId, 'Proceso terminó sin generar ZIP', 'warn');
+          setStatus('Error', '');
+          cfg.onFinalize(false);
+        }
+      })
+      .catch(function(e){
+        logUI(cfg.logBoxId, 'Error verificando: ' + e.message, 'error');
+        setStatus('Error', '');
+        cfg.onFinalize(false);
+      })
+      .finally(function(){
+        resetRunState();
+        fetchB2Status();
+        if (evtSource) { evtSource.close(); evtSource = null; }
+      });
+  }
+
+  function run(fd) {
+    if (!cfg.jobIdRef.v) { toast('Sin sesión. Recarga.', 'error'); return; }
+    finalized = false; fallbackId = null; uploading = true;
+    setStatus('Procesando', 'running');
+    document.getElementById(cfg.logBoxId).innerHTML = '';
+    if (cfg.statOkId)  document.getElementById(cfg.statOkId).textContent  = '0';
+    if (cfg.statErrId) document.getElementById(cfg.statErrId).textContent = '0';
+
+    // SSE first
+    if (evtSource) evtSource.close();
+    evtSource = new EventSource('/stream/' + cfg.jobIdRef.v);
+    evtSource.onmessage = function(e) {
+      var d; try { d = JSON.parse(e.data); } catch { return; }
+      if (d.ping || d.connected) return;
+      if (d.msg === '__JOB_FINISHED__') { finalizeJob(); return; }
+      logUI(cfg.logBoxId, d.msg, d.tipo);
+      var m = d.msg.match(/Listo:\s*(\d+)\s+archivos/);
+      if (m && cfg.statOkId) document.getElementById(cfg.statOkId).textContent = m[1];
+      if (d.tipo === 'error' && cfg.statErrId) {
+        var el = document.getElementById(cfg.statErrId);
+        el.textContent = parseInt(el.textContent||'0',10) + 1;
+      }
+    };
+    evtSource.onerror = function(){ /* auto-reconnect */ };
+
+    // Send files
+    fd.append('job_id', cfg.jobIdRef.v);
+    fetch(cfg.runEndpoint, {method:'POST', body:fd})
+      .then(function(r){
+        if (r.status === 410) {
+          cfg.jobIdRef.v = null; cfg.initPromiseRef.v = null;
+          toast('Sesión renovada. Vuelve a intentarlo.', 'info');
+          setStatus('Listo',''); resetRunState();
+          if (evtSource){ evtSource.close(); evtSource=null; }
+          return null;
+        }
+        return r.json().then(function(data){
+          if (!r.ok || data.error) throw new Error(data.error || 'HTTP '+r.status);
+          if (data.warnings) data.warnings.forEach(function(w){ logUI(cfg.logBoxId,'⚠ '+w,'warn'); });
+          uploading = false;
+          fallbackId = setTimeout(function(){
+            fallbackId = null;
+            if (finalized) return;
+            fetch('/status/'+cfg.jobIdRef.v).then(function(r){return r.json();}).then(function(s){
+              if(s.done||s.zip_ready||s.error||s.expired) finalizeJob();
+            }).catch(function(){});
+          }, 45000);
+        });
+      })
+      .catch(function(err){
+        logUI(cfg.logBoxId,'Error: '+err.message,'error');
+        toast('Error: '+err.message,'error');
+        setStatus('Error',''); resetRunState();
+        if(evtSource){evtSource.close();evtSource=null;}
+      });
+  }
+
+  return { initJob: initJob, run: run };
+}
+
+function descargarZIPGeneric(jobId, downloadName) {
+  fetch('/download/' + jobId)
+    .then(function(r){
+      if(!r.ok) throw new Error('ZIP no disponible');
+      return r.blob();
+    })
+    .then(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = downloadName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+      toast('✅ Descargando ' + downloadName, 'ok');
+    })
+    .catch(function(e){ toast('Error al descargar: '+e.message,'error'); });
+}
+
+// ── B2 status ─────────────────────────────────
+function fetchB2Status() {
+  fetch('/b2-status').then(function(r){ return r.json(); }).then(function(d){
+    var pill  = document.getElementById('b2Pill');
+    var dot   = document.getElementById('b2Dot');
+    var label = document.getElementById('b2Label');
+    var badge = document.getElementById('b2Badge');
+    pill.style.display = 'flex';
+    if (d.configured && !d.error) {
+      dot.className = 'b2-dot connected'; label.textContent = 'B2 ✓';
+      badge.textContent = d.file_count + ' archivos';
+      document.getElementById('b2Files').textContent = d.file_count;
+      document.getElementById('b2Size').textContent  = d.total_mb || '0';
+      document.getElementById('b2Folders').textContent = d.files ? new Set(d.files.map(function(f){ return f.name.split('/')[0]; })).size : 0;
+    } else {
+      dot.className = 'b2-dot error'; label.textContent = 'B2 ✗';
+      badge.textContent = 'Sin config';
+      ['b2Files','b2Size','b2Folders'].forEach(function(id){ document.getElementById(id).textContent='—'; });
+    }
+  }).catch(function(){});
+}
+
+function clearB2() {
+  var btn = document.getElementById('clearB2Btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Limpiando...';
+  fetch('/clear-b2',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+    if(d.status==='already_running'){ toast('Limpieza ya en curso','warn'); return; }
+    logUI('logBoxR','🗑 Limpiando Backblaze...','info');
+    var poll = function(){
+      fetch('/clear-b2/status').then(function(r){return r.json();}).then(function(s){
+        if(s.running){setTimeout(poll,1500);return;}
+        var res=s.last_result;
+        if(res){
+          if(res.ok){ toast('🗑 '+res.deleted_count+' archivos eliminados','ok'); logUI('logBoxR','🗑 Backblaze limpio: '+res.deleted_count+' archivos','ok'); }
+          else { toast('⚠ Limpieza con errores','warn'); }
+        }
+        fetchB2Status();
+        btn.disabled=false; btn.innerHTML='<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
+      }).catch(function(){ btn.disabled=false; btn.innerHTML='<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)'; });
+    };
+    setTimeout(poll,1500);
+  }).catch(function(e){
+    toast('Error: '+e.message,'error');
+    btn.disabled=false; btn.innerHTML='<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
+  });
+}
+
+// ═══════════════════════════════════════
+// RENOMBOT
+// ═══════════════════════════════════════
+var rFilesData = [];
+var rJobRef    = {v:null};
+var rInitRef   = {v:null};
+
+var rJob = makeJobRunner({
+  runEndpoint:    '/run',
+  downloadName:   'Renombrado.zip',
+  logBoxId:       'logBoxR',
+  statOkId:       'sOk',
+  statErrId:      'sErr',
+  jobIdRef:       rJobRef,
+  initPromiseRef: rInitRef,
+  onFinalize: function(ok) {
+    document.getElementById('dlBtn').style.display = ok ? 'flex' : 'none';
+  },
+  onReset: function() {
+    var btn = document.getElementById('runBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-magic"></i> Renombrar y descargar ZIP';
+  }
+});
+
+function isJunkSeg(s) {
+  if (!s) return true;
+  var low = s.toLowerCase();
+  if (low.startsWith('descargamasiva-')) return true;
+  if (/^\d{8,}$/.test(s)) return true;
+  if (['downloads','descargas','temp','tmp','desktop','documents'].includes(low)) return true;
+  return false;
+}
+function getRootOf(path) {
+  var parts = path.split('/');
+  return parts.find(function(p){ return p && !isJunkSeg(p); }) || parts[0] || '';
+}
+function renamePrev(name, isZip) {
+  var n = isZip ? name.replace(/\.zip$/i,'') : name;
+  var parts = n.split('-');
+  return parts.length > 1 ? parts[parts.length-1] : n;
+}
+
+function rRender() {
+  var chips    = document.getElementById('chips');
+  var prevList = document.getElementById('prevList');
+  var prevCnt  = document.getElementById('prevCount');
+  var sTotal   = document.getElementById('sTotal');
+  var heroMsg  = document.getElementById('heroMsg');
+
+  var roots = new Map();
+  rFilesData.forEach(function(f){
+    var root = getRootOf(f.path);
+    if (root && !roots.has(root)) roots.set(root, {isZip: f.file.name.toLowerCase().endsWith('.zip')});
+  });
+
+  sTotal.textContent  = roots.size;
+  prevCnt.textContent = roots.size + ' carpeta' + (roots.size === 1 ? '' : 's');
+  heroMsg.textContent = roots.size ? roots.size + ' elemento(s) cargado(s)' : 'Esperando elementos';
+
+  if (!roots.size) {
+    chips.innerHTML    = '<span class="chips-empty">Sin elementos</span>';
+    prevList.innerHTML = '<div class="prev-empty">Agrega carpetas o ZIPs para ver la vista previa</div>';
+    return;
+  }
+
+  chips.innerHTML = Array.from(roots.entries()).map(function(entry){
+    var name=entry[0], info=entry[1];
+    return '<div class="chip'+(info.isZip?' zip':'')+'"><i class="fas '+(info.isZip?'fa-file-zipper':'fa-folder')+'" style="font-size:10px;color:'+(info.isZip?'#8b5cf6':'#f59e0b')+'"></i><span title="'+esc(name)+'">'+esc(name)+'</span><button class="chip-x" onclick="rRemoveRoot(\''+esc(name).replace(/'/g,"&#39;")+'\')">✕</button></div>';
+  }).join('');
+
+  prevList.innerHTML = Array.from(roots.entries()).map(function(entry){
+    var name=entry[0], info=entry[1];
+    var newName = renamePrev(name, info.isZip);
+    return '<div class="prev-row"><span class="prev-old" title="'+esc(name)+'">'+esc(name)+'</span><span class="prev-arr">→</span><span class="prev-new">'+esc(newName)+'</span><span class="prev-badge">carpeta</span></div>';
+  }).join('');
+}
+
+function rRemoveRoot(root) {
+  rFilesData = rFilesData.filter(function(f){ return getRootOf(f.path) !== root; });
+  rRender(); logUI('logBoxR','Eliminado: '+root,'warn');
+}
+
+// Drag & drop RenomBot
+function doDrag(e, a) {
+  e.preventDefault();
+  var dz = document.getElementById('dropZone');
+  if (a==='over') dz.classList.add('over');
+  if (a==='leave') dz.classList.remove('over');
+  if (a==='drop') { dz.classList.remove('over'); rHandleDrop(e); }
+}
+
+async function rTraverseDir(entry, relPath) {
+  var np = relPath ? relPath+'/'+entry.name : entry.name;
+  if (entry.isDirectory) {
+    var reader = entry.createReader(), all = [];
+    while (true) {
+      var batch = await new Promise(function(res,rej){ reader.readEntries(res,rej); });
+      if (!batch.length) break;
+      all = all.concat(batch);
+    }
+    for (var i=0;i<all.length;i++) await rTraverseDir(all[i],np);
+  } else if (entry.isFile) {
+    var file = await new Promise(function(res){ entry.file(res); });
+    rFilesData.push({path:np,file:file});
+  }
+}
+
+async function rHandleDrop(e) {
+  var items = e.dataTransfer.items, added = 0;
+  for (var i=0;i<items.length;i++) {
+    var entry = items[i].webkitGetAsEntry();
+    if (!entry) continue;
+    if (entry.isDirectory) { await rTraverseDir(entry,''); added++; }
+    else if (entry.isFile) {
+      var file = await new Promise(function(res){ entry.file(res); });
+      if (file.name.toLowerCase().endsWith('.zip')) { rFilesData.push({path:file.name,file:file}); added++; }
+      else logUI('logBoxR','Ignorado (no es ZIP): '+file.name,'warn');
+    }
+  }
+  if (added) { rRender(); logUI('logBoxR',added+' elemento(s) agregado(s)','ok'); }
+}
+
+document.getElementById('folderInput').addEventListener('change', function(){
+  if (!this.files.length) return;
+  for (var i=0;i<this.files.length;i++) rFilesData.push({path:this.files[i].webkitRelativePath||this.files[i].name, file:this.files[i]});
+  rRender(); logUI('logBoxR','Carpeta agregada ('+this.files.length+' archivos)','ok');
+  this.value='';
+});
+
+document.getElementById('zipInput').addEventListener('change', function(){
+  var n=0;
+  for (var i=0;i<this.files.length;i++){
+    if(this.files[i].name.toLowerCase().endsWith('.zip')){ rFilesData.push({path:this.files[i].name,file:this.files[i]}); n++; }
+  }
+  if(n){ rRender(); logUI('logBoxR',n+' ZIP(s) agregado(s)','ok'); }
+  this.value='';
+});
+
+document.getElementById('clearBtn').onclick = function(){
+  rFilesData=[]; rRender();
+  document.getElementById('dlBtn').style.display='none';
+  document.getElementById('sOk').textContent='0';
+  document.getElementById('sErr').textContent='0';
+  logUI('logBoxR','Lista limpiada','info');
+};
+
+function descargarZIP() { descargarZIPGeneric(rJobRef.v, 'Renombrado.zip'); }
+
+document.getElementById('runBtn').addEventListener('click', async function(){
+  if (!rFilesData.length) { toast('Agrega al menos un elemento','warn'); return; }
+  if (!rJobRef.v) { toast('Conectando...','info'); await rJob.initJob(); }
+  if (!rJobRef.v) { toast('No se pudo conectar. Recarga.','error'); return; }
+
+  var btn = document.getElementById('runBtn');
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Procesando...';
+  document.getElementById('dlBtn').style.display='none';
+
+  var fd = new FormData();
+  rFilesData.forEach(function(item,i){
+    fd.append('file_'+i, item.file, item.file.name);
+    fd.append('path_'+i, item.path);
+  });
+  rJob.run(fd);
+});
+
+// ═══════════════════════════════════════
+// FURIPSBOT
+// ═══════════════════════════════════════
+var fFilesData = [];
+var fJobRef    = {v:null};
+var fInitRef   = {v:null};
+
+var fJob = makeJobRunner({
+  runEndpoint:    '/furips/run',
+  downloadName:   'FURIPS_Renombrados.zip',
+  logBoxId:       'logBoxF',
+  statOkId:       'fOk',
+  statErrId:      'fErr',
+  jobIdRef:       fJobRef,
+  initPromiseRef: fInitRef,
+  onFinalize: function(ok) {
+    document.getElementById('furipDlBtn').style.display = ok ? 'flex' : 'none';
+  },
+  onReset: function() {
+    var btn = document.getElementById('furipRunBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP';
+  }
+});
+
+function furipRender() {
+  var prevList = document.getElementById('furipPrevList');
+  var prevCnt  = document.getElementById('furipPrevCount');
+  var fTotal   = document.getElementById('fTotal');
+  var heroMsg  = document.getElementById('furipsMsg');
+  var loaded   = document.getElementById('furipLoaded');
+
+  if (!fFilesData.length) {
+    loaded.style.display='none';
+    fTotal.textContent='0'; heroMsg.textContent='Esperando carpeta de facturas';
+    prevList.innerHTML='<div class="prev-empty">Carga una carpeta para ver la vista previa</div>';
+    prevCnt.textContent='0 archivos';
+    return;
+  }
+
+  // Agrupar por factura
+  var facturas = new Map();
+  fFilesData.forEach(function(f){
+    var parts = f.path.split('/').filter(function(p){return p;});
+    if (parts.length >= 2) {
+      var factura=parts[parts.length-2], fname=parts[parts.length-1];
+      if (!facturas.has(factura)) facturas.set(factura,[]);
+      facturas.get(factura).push(fname);
+    }
+  });
+
+  var rootName = fFilesData[0] ? (fFilesData[0].path.split('/').filter(function(p){return p;})[0]||'—') : '—';
+  document.getElementById('furipFolderName').textContent = rootName;
+  document.getElementById('furipFileCount').textContent = fFilesData.length+' archivos en '+facturas.size+' factura'+(facturas.size!==1?'s':'');
+  loaded.style.display='block';
+
+  fTotal.textContent=facturas.size;
+  heroMsg.textContent=facturas.size+' factura'+(facturas.size!==1?'s':'')+' cargada'+(facturas.size!==1?'s':'');
+
+  var rows=[], shown=0;
+  facturas.forEach(function(files, factura){
+    files.forEach(function(fname){
+      if(shown>=30) return;
+      var dot=fname.lastIndexOf('.'), stem=dot>-1?fname.slice(0,dot):fname, ext=dot>-1?fname.slice(dot):'';
+      var newName=stem+'_'+factura+ext;
+      rows.push('<div class="prev-row"><span class="prev-old" title="'+esc(fname)+'">'+esc(fname)+'</span><span class="prev-arr">→</span><span class="prev-new purple">'+esc(newName)+'</span><span class="prev-badge purple">'+esc(factura)+'</span></div>');
+      shown++;
+    });
+  });
+  if (fFilesData.length > shown) rows.push('<div class="prev-empty" style="padding:.5rem 1rem">… y '+(fFilesData.length-shown)+' archivos más</div>');
+  prevList.innerHTML=rows.join('');
+  prevCnt.textContent=fFilesData.length+' archivos';
+}
+
+function furipClear() {
+  fFilesData=[]; furipRender();
+  document.getElementById('fOk').textContent='0';
+  document.getElementById('fErr').textContent='0';
+  logUI('logBoxF','Lista limpiada','info');
+}
+
+function furipDescargar() { descargarZIPGeneric(fJobRef.v,'FURIPS_Renombrados.zip'); }
+
+// Drag & drop FURIPSBot
+function furipDrag(e, a) {
+  e.preventDefault();
+  var dz = document.getElementById('furipsDrop');
+  if (a==='over') dz.classList.add('over');
+  if (a==='leave') dz.classList.remove('over');
+  if (a==='drop') { dz.classList.remove('over'); furipHandleDrop(e); }
+}
+
+async function furipTraverseDir(entry, relPath) {
+  var np = relPath ? relPath+'/'+entry.name : entry.name;
+  if (entry.isDirectory) {
+    var reader=entry.createReader(), all=[];
+    while(true){
+      var batch=await new Promise(function(res,rej){reader.readEntries(res,rej);});
+      if(!batch.length) break;
+      all=all.concat(batch);
+    }
+    for(var i=0;i<all.length;i++) await furipTraverseDir(all[i],np);
+  } else if (entry.isFile) {
+    var file=await new Promise(function(res){entry.file(res);});
+    fFilesData.push({path:np,file:file});
+  }
+}
+
+async function furipHandleDrop(e) {
+  fFilesData=[];
+  var items=e.dataTransfer.items;
+  for(var i=0;i<items.length;i++){
+    var entry=items[i].webkitGetAsEntry();
+    if(!entry) continue;
+    if(entry.isDirectory){ await furipTraverseDir(entry,''); }
+    else if(entry.isFile){
+      var file=await new Promise(function(res){entry.file(res);});
+      if(file.name.toLowerCase().endsWith('.zip')) fFilesData.push({path:file.name,file:file});
+    }
+  }
+  furipRender();
+  if(fFilesData.length) logUI('logBoxF',fFilesData.length+' archivos cargados','ok');
+}
+
+document.getElementById('furipFolderInput').addEventListener('change', function(){
+  if(!this.files.length) return;
+  fFilesData=[];
+  for(var i=0;i<this.files.length;i++) fFilesData.push({path:this.files[i].webkitRelativePath||this.files[i].name,file:this.files[i]});
+  furipRender(); logUI('logBoxF','Carpeta cargada: '+this.files.length+' archivos','ok');
+  this.value='';
+});
+
+document.getElementById('furipZipInput').addEventListener('change', function(){
+  if(!this.files.length) return;
+  fFilesData=[{path:this.files[0].name,file:this.files[0]}];
+  furipRender(); logUI('logBoxF','ZIP cargado: '+this.files[0].name,'ok');
+  this.value='';
+});
+
+document.getElementById('furipRunBtn').addEventListener('click', async function(){
+  if (!fFilesData.length) { toast('Carga una carpeta primero','warn'); return; }
+  if (!fJobRef.v) { toast('Conectando...','info'); await fJob.initJob(); }
+  if (!fJobRef.v) { toast('No se pudo conectar. Recarga.','error'); return; }
+
+  var btn = document.getElementById('furipRunBtn');
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Procesando...';
+  document.getElementById('furipDlBtn').style.display='none';
+
+  var fd=new FormData();
+  fFilesData.forEach(function(item,i){
+    fd.append('file_'+i,item.file,item.file.name);
+    fd.append('path_'+i,item.path);
+  });
+  fJob.run(fd);
+});
+
+// ── Init ─────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function(){
+  rJob.initJob();
+  fJob.initJob();
+  fetchB2Status();
+  setInterval(fetchB2Status, 30000);
+});
+
+window.addEventListener('beforeunload', function(e){
+  // warn if either app is uploading (can't easily track now, skip)
+});
+</script>
 </body>
 </html>
