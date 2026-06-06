@@ -603,7 +603,7 @@ function makeJobRunner(cfg) {
         } else if (s.zip_ready) {
           cfg.onFinalize(true);
           setStatus('Listo', 'done');
-          descargarZIPGeneric(cfg.jobIdRef.v, cfg.downloadName);
+          descargarZIPGeneric(cfg.jobIdRef.v, cfg.downloadName, cfg.dlBtnId);
         } else if (s.error) {
           logUI(cfg.logBoxId, 'Error: ' + s.error, 'error');
           toast('Error: ' + s.error, 'error');
@@ -687,21 +687,34 @@ function makeJobRunner(cfg) {
   return { initJob: initJob, run: run };
 }
 
-function descargarZIPGeneric(jobId, downloadName) {
+function descargarZIPGeneric(jobId, downloadName, btnId) {
+  // Mostrar botón SIEMPRE primero como fallback si el browser bloquea el auto-download
+  if (btnId) {
+    var btn = document.getElementById(btnId);
+    if (btn) btn.style.display = 'flex';
+  }
   fetch('/download/' + jobId)
     .then(function(r){
-      if(!r.ok) throw new Error('ZIP no disponible');
+      if (r.status === 410) { toast('Sesión expirada. Usa el botón de descarga.', 'warn'); return null; }
+      if (!r.ok) throw new Error('ZIP no disponible (HTTP ' + r.status + ')');
       return r.blob();
     })
     .then(function(blob){
+      if (!blob) return;
       var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = downloadName;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+      var a   = document.createElement('a');
+      a.href  = url;
+      a.download = downloadName;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
       toast('✅ Descargando ' + downloadName, 'ok');
     })
-    .catch(function(e){ toast('Error al descargar: '+e.message,'error'); });
+    .catch(function(e){
+      toast('No se pudo descargar automáticamente. Usa el botón verde.', 'warn');
+    });
 }
 
 // ── B2 status ─────────────────────────────────
@@ -762,6 +775,7 @@ var rInitRef   = {v:null};
 var rJob = makeJobRunner({
   runEndpoint:    '/run',
   downloadName:   'Renombrado.zip',
+  dlBtnId:        'dlBtn',
   logBoxId:       'logBoxR',
   statOkId:       'sOk',
   statErrId:      'sErr',
@@ -899,7 +913,7 @@ document.getElementById('clearBtn').onclick = function(){
   logUI('logBoxR','Lista limpiada','info');
 };
 
-function descargarZIP() { descargarZIPGeneric(rJobRef.v, 'Renombrado.zip'); }
+function descargarZIP() { descargarZIPGeneric(rJobRef.v, 'Renombrado.zip', 'dlBtn'); }
 
 document.getElementById('runBtn').addEventListener('click', async function(){
   if (!rFilesData.length) { toast('Agrega al menos un elemento','warn'); return; }
@@ -928,6 +942,7 @@ var fInitRef   = {v:null};
 var fJob = makeJobRunner({
   runEndpoint:    '/furips/run',
   downloadName:   'FURIPS_Renombrados.zip',
+  dlBtnId:        'furipDlBtn',
   logBoxId:       'logBoxF',
   statOkId:       'fOk',
   statErrId:      'fErr',
@@ -982,7 +997,7 @@ function furipRender() {
     files.forEach(function(fname){
       if(shown>=30) return;
       var dot=fname.lastIndexOf('.'), stem=dot>-1?fname.slice(0,dot):fname, ext=dot>-1?fname.slice(dot):'';
-      var newName=stem+'_'+factura+ext;
+      var newName=factura+'_'+stem+ext;
       rows.push('<div class="prev-row"><span class="prev-old" title="'+esc(fname)+'">'+esc(fname)+'</span><span class="prev-arr">→</span><span class="prev-new purple">'+esc(newName)+'</span><span class="prev-badge purple">'+esc(factura)+'</span></div>');
       shown++;
     });
@@ -999,7 +1014,7 @@ function furipClear() {
   logUI('logBoxF','Lista limpiada','info');
 }
 
-function furipDescargar() { descargarZIPGeneric(fJobRef.v,'FURIPS_Renombrados.zip'); }
+function furipDescargar() { descargarZIPGeneric(fJobRef.v,'FURIPS_Renombrados.zip','furipDlBtn'); }
 
 // Drag & drop FURIPSBot
 function furipDrag(e, a) {

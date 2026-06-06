@@ -966,7 +966,8 @@ def _run_furips(job_id: str, items: List[Tuple[str, bytes]]) -> None:
                     stem = filename
                     ext  = ""
 
-                new_name = f"{stem}_{factura}{ext}"
+                # FIX: factura va AL INICIO → 7255454_FURIPS176001096140129042026.ext
+                new_name = f"{factura}_{stem}{ext}"
 
                 # Resolver colisiones de nombre (muy improbable, pero seguro)
                 if new_name in seen_names:
