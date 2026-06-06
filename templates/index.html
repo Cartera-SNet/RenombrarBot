@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-<title>RenomBot · SIS</title>
+<title>SIS · Herramientas</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -350,6 +350,131 @@ body {
 .toast.info  { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
 
 @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+
+/* ── App switcher ────────────────────────────────────── */
+.app-switcher {
+  display: flex; gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  margin-left: auto;
+}
+.app-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 13px; border-radius: 7px;
+  font-size: 12px; font-weight: 600;
+  border: none; background: none; cursor: pointer;
+  color: var(--muted); transition: all .18s;
+}
+.app-tab:hover { color: var(--text); background: var(--surface); }
+.app-tab.active {
+  background: var(--surface);
+  color: var(--indigo);
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.app-tab i { font-size: 11px; }
+
+/* ── FURIPSBot panel ─────────────────────────────────── */
+#furipsApp { display: none; }
+#renomApp  { display: block; }
+
+.furips-drop-zone {
+  border: 2px dashed var(--border2);
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 1.8rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  margin-bottom: .9rem;
+}
+.furips-drop-zone:hover, .furips-drop-zone.over {
+  border-color: #8b5cf6;
+  background: #faf5ff;
+}
+.furips-drop-zone i { font-size: 26px; color: var(--faint); display: block; margin-bottom: 8px; transition: color .2s; }
+.furips-drop-zone:hover i, .furips-drop-zone.over i { color: #8b5cf6; }
+.furips-drop-zone p { font-size: 13px; font-weight: 500; color: var(--text); }
+.furips-drop-zone small { font-size: 11px; color: var(--faint); }
+
+.btn-run-furips {
+  width: 100%; padding: 11px;
+  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+  color: #fff; font-size: 14px; font-weight: 600;
+  border: none; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 14px rgba(124,58,237,.35);
+  transition: all .2s;
+}
+.btn-run-furips:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,58,237,.4); }
+.btn-run-furips:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-dl-furips {
+  width: 100%; padding: 10px;
+  background: linear-gradient(135deg, var(--green) 0%, #059669 100%);
+  color: #fff; font-size: 13px; font-weight: 600;
+  border: none; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 12px rgba(16,185,129,.3);
+  text-decoration: none; margin-top: .6rem;
+  animation: popIn .3s ease;
+}
+.btn-dl-furips:hover { opacity: .9; }
+
+.furips-hero {
+  background: linear-gradient(135deg, #2d1b69 0%, #4c1d95 60%, #1e1b4b 100%);
+  border-radius: var(--radius);
+  padding: 1.1rem 1rem 1rem;
+  display: flex; align-items: center; gap: 1rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.25rem;
+}
+.furips-hero-icon {
+  width: 70px; height: 70px; flex-shrink: 0;
+  background: rgba(139,92,246,.2);
+  border: 2px solid rgba(139,92,246,.4);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+  filter: drop-shadow(0 4px 12px rgba(139,92,246,.5));
+}
+.furips-info { flex: 1; }
+.furips-msg { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-bottom: .6rem; }
+.furips-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; }
+.fstat {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px; padding: .5rem .4rem; text-align: center;
+}
+.fstat .n { font-size: 20px; font-weight: 700; font-family: monospace; color: #fff; }
+.fstat .l { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 1px; text-transform: uppercase; letter-spacing: .04em; }
+.fstat.g .n { color: #6ee7b7; }
+.fstat.r .n { color: #fca5a5; }
+
+.furips-loaded {
+  background: #faf5ff; border: 1px solid #ddd6fe;
+  border-radius: 10px; padding: .7rem 1rem;
+  margin-bottom: .9rem;
+  display: none;
+}
+.furips-loaded-title {
+  font-size: 11px; font-weight: 600; color: #6d28d9;
+  text-transform: uppercase; letter-spacing: .06em;
+  margin-bottom: .4rem;
+}
+.furips-folder-name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 7px;
+}
+.furips-file-count {
+  font-size: 11px; color: var(--muted); margin-top: 3px;
+}
+.furips-clear {
+  font-size: 11px; color: var(--red); background: none; border: none;
+  cursor: pointer; font-weight: 500; float: right; padding: 0;
+}
+.furips-clear:hover { opacity: .75; }
 </style>
 </head>
 <body>
@@ -359,8 +484,18 @@ body {
   <img src="/static/SIS.png" alt="SIS" class="topbar-logo">
   <div class="topbar-divider"></div>
   <div>
-    <div class="topbar-name">RenomBot <span>· SIS</span></div>
+    <div class="topbar-name">SIS <span>· Herramientas</span></div>
     <div class="topbar-sub">Servicios Integrales en Sistemas</div>
+  </div>
+
+  <!-- App switcher -->
+  <div class="app-switcher">
+    <button class="app-tab active" id="tabRenom" onclick="switchApp('renom')">
+      <i class="fas fa-magic"></i> RenomBot
+    </button>
+    <button class="app-tab" id="tabFurips" onclick="switchApp('furips')">
+      <i class="fas fa-file-invoice"></i> FURIPSBot
+    </button>
   </div>
 
   <!-- B2 status pill -->
@@ -375,6 +510,8 @@ body {
   </div>
 </header>
 
+<!-- ══════════════ RENOMBOT APP ══════════════ -->
+<div id="renomApp">
 <!-- LAYOUT -->
 <div class="layout">
 
@@ -547,6 +684,106 @@ body {
 </div>
 
 <div id="toastBox"></div>
+
+</div><!-- /renomApp -->
+
+<!-- ══════════════ FURIPSBOT APP ══════════════ -->
+<div id="furipsApp">
+<div class="layout">
+
+  <!-- IZQUIERDA -->
+  <div>
+
+    <!-- HERO -->
+    <div class="furips-hero">
+      <div class="furips-hero-icon">📄</div>
+      <div class="furips-info">
+        <div class="furips-msg" id="furipsHeroMsg">Esperando carpeta de facturas</div>
+        <div class="furips-stats">
+          <div class="fstat"><div class="n" id="fTotal">0</div><div class="l">Facturas</div></div>
+          <div class="fstat g"><div class="n" id="fOk">0</div><div class="l">OK</div></div>
+          <div class="fstat r"><div class="n" id="fErr">0</div><div class="l">Errores</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARGA -->
+    <div class="card">
+      <div class="card-head"><i class="fas fa-folder-open"></i> Cargar carpeta de facturas</div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:.8rem">
+
+        <div class="furips-drop-zone" id="furipsDrop"
+          ondragover="furipsDrag(event,'over')" ondragleave="furipsDrag(event,'leave')" ondrop="furipsDrag(event,'drop')">
+          <i class="fas fa-folder-tree"></i>
+          <p>Arrastrá la carpeta de facturas aquí</p>
+          <small>Estructura: carpeta → subcarpetas con número de factura → archivos FURIPS1 y FURIPS2</small>
+        </div>
+
+        <div class="add-row" style="grid-template-columns:1fr 1fr">
+          <label class="btn-add" title="Selecciona la carpeta principal con las subcarpetas de facturas">
+            <i class="fas fa-folder" style="color:#8b5cf6"></i> Carpeta
+            <input type="file" id="furipsFolderInput" webkitdirectory style="display:none">
+          </label>
+          <label class="btn-add">
+            <i class="fas fa-file-zipper" style="color:#8b5cf6"></i> ZIP
+            <input type="file" id="furipZipInput" accept=".zip" style="display:none">
+          </label>
+        </div>
+
+        <!-- Info carpeta cargada -->
+        <div class="furips-loaded" id="furipLoadedInfo">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div class="furips-loaded-title"><i class="fas fa-check-circle" style="color:#10b981;margin-right:5px"></i>Cargado</div>
+            <button class="furips-clear" onclick="furipsClear()"><i class="fas fa-trash-alt"></i> Limpiar</button>
+          </div>
+          <div class="furips-folder-name"><i class="fas fa-folder" style="color:#8b5cf6"></i><span id="furipFolderName">—</span></div>
+          <div class="furips-file-count" id="furipFileCount">0 archivos en 0 facturas</div>
+        </div>
+
+        <button class="btn-run-furips" id="furipRunBtn">
+          <i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP
+        </button>
+        <button class="btn-dl-furips" id="furipDlBtn" style="display:none" onclick="furipDescargar()">
+          <i class="fas fa-download"></i> Descargar FURIPS_Renombrados.zip
+        </button>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DERECHA -->
+  <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+    <!-- PREVIEW facturas -->
+    <div class="card">
+      <div class="card-head">
+        <i class="fas fa-list-check"></i> Vista previa — archivos a renombrar
+        <span class="cnt" id="furipPrevCount">0 archivos</span>
+      </div>
+      <div class="prev-list" id="furipPrevList" style="max-height:200px">
+        <div class="prev-empty">Carga una carpeta para ver la vista previa</div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="card log-card" style="overflow:hidden">
+      <div class="log-topbar">
+        <div class="mac" style="background:#ff5f57"></div>
+        <div class="mac" style="background:#febc2e"></div>
+        <div class="mac" style="background:#28c840"></div>
+        <span class="log-title">furipsbot — output</span>
+        <button class="log-action" onclick="furipLimpiarLog()" title="Limpiar"><i class="fas fa-trash-alt"></i></button>
+        <button class="log-action" onclick="furipCopiarLog()" title="Copiar"><i class="fas fa-copy"></i></button>
+      </div>
+      <div id="furipLogBox">
+        <div class="ll info"><span class="ts">--:--:--</span><span class="lm">FURIPSBot listo. Carga una carpeta de facturas. <span class="cursor"></span></span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div><!-- /furipsApp -->
 
 <script>
 /* ═══════════════════════════════════════════════════════════
@@ -1153,7 +1390,361 @@ function animGear() {
   _gearRafId = requestAnimationFrame(animGear);
 }
 
-window.removeRoot = removeRoot;
-</script>
+/* ═══════════════════════════════════════════════════════════
+   App Switcher
+   ═══════════════════════════════════════════════════════════ */
+function switchApp(app) {
+  document.getElementById('renomApp').style.display   = app === 'renom'  ? 'block' : 'none';
+  document.getElementById('furipsApp').style.display  = app === 'furips' ? 'block' : 'none';
+  document.getElementById('tabRenom').classList.toggle('active',  app === 'renom');
+  document.getElementById('tabFurips').classList.toggle('active', app === 'furips');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FURIPSBot — Frontend
+   ═══════════════════════════════════════════════════════════ */
+let furipFiles  = [];   // [{path, file}]
+let furipJobId  = null;
+let furipInitPr = null;
+let furipEvt    = null;
+let furipUploading = false;
+let furipFinalized = false;
+let furipFallbackId = null;
+let furipGearRafId  = null;
+
+async function furipInitJob() {
+  if (furipInitPr) return furipInitPr;
+  furipInitPr = (async () => {
+    try {
+      const res = await fetch('/job/new', { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      furipJobId = (await res.json()).job_id;
+    } catch (e) {
+      toast('FURIPSBot: no se pudo conectar: ' + e.message, 'error');
+      setTimeout(() => { furipInitPr = null; furipInitJob(); }, 3000);
+    }
+  })();
+  return furipInitPr;
+}
+
+// Iniciar job de FURIPSBot en segundo plano al cargar
+document.addEventListener('DOMContentLoaded', () => { furipInitJob(); });
+
+/* ── Drag & drop ── */
+function furipsDrag(e, a) {
+  e.preventDefault();
+  const dz = document.getElementById('furipsDrop');
+  if (a === 'over')  dz.classList.add('over');
+  if (a === 'leave') dz.classList.remove('over');
+  if (a === 'drop')  { dz.classList.remove('over'); furipHandleDrop(e); }
+}
+
+async function furipTraverseDir(entry, relPath) {
+  const np = relPath ? `${relPath}/${entry.name}` : entry.name;
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    let all = [];
+    while (true) {
+      const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+      if (!batch.length) break;
+      all = all.concat(batch);
+    }
+    for (const c of all) await furipTraverseDir(c, np);
+  } else if (entry.isFile) {
+    const file = await new Promise(res => entry.file(res));
+    furipFiles.push({ path: np, file });
+  }
+}
+
+async function furipHandleDrop(e) {
+  furipFiles = [];
+  const items = e.dataTransfer.items;
+  for (let i = 0; i < items.length; i++) {
+    const entry = items[i].webkitGetAsEntry();
+    if (!entry) continue;
+    if (entry.isDirectory) {
+      await furipTraverseDir(entry, '');
+    } else if (entry.isFile) {
+      const file = await new Promise(res => entry.file(res));
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        furipFiles.push({ path: file.name, file });
+      }
+    }
+  }
+  furipRender();
+  if (furipFiles.length) furipLogUI(`${furipFiles.length} archivos cargados`, 'ok');
+}
+
+document.getElementById('furipsFolderInput').addEventListener('change', function () {
+  if (!this.files.length) return;
+  furipFiles = [];
+  for (const f of this.files) furipFiles.push({ path: f.webkitRelativePath || f.name, file: f });
+  furipRender();
+  furipLogUI(`Carpeta cargada: ${this.files.length} archivos`, 'ok');
+  this.value = '';
+});
+
+document.getElementById('furipZipInput').addEventListener('change', function () {
+  if (!this.files.length) return;
+  furipFiles = [];
+  furipFiles.push({ path: this.files[0].name, file: this.files[0] });
+  furipRender();
+  furipLogUI(`ZIP cargado: ${this.files[0].name}`, 'ok');
+  this.value = '';
+});
+
+/* ── Render preview ── */
+function furipRender() {
+  const info     = document.getElementById('furipLoadedInfo');
+  const prevList = document.getElementById('furipPrevList');
+  const prevCnt  = document.getElementById('furipPrevCount');
+  const fTotal   = document.getElementById('fTotal');
+  const heroMsg  = document.getElementById('furipsHeroMsg');
+
+  if (!furipFiles.length) {
+    info.style.display = 'none';
+    fTotal.textContent = '0';
+    heroMsg.textContent = 'Esperando carpeta de facturas';
+    prevList.innerHTML = '<div class="prev-empty">Carga una carpeta para ver la vista previa</div>';
+    prevCnt.textContent = '0 archivos';
+    document.getElementById('furipDlBtn').style.display = 'none';
+    return;
+  }
+
+  // Agrupar por factura (segundo segmento de la ruta)
+  const facturas = new Map();
+  furipFiles.forEach(f => {
+    const parts = f.path.split('/').filter(p => p);
+    if (parts.length >= 2) {
+      const factura  = parts[parts.length - 2];
+      const filename = parts[parts.length - 1];
+      if (!facturas.has(factura)) facturas.set(factura, []);
+      facturas.get(factura).push(filename);
+    }
+  });
+
+  // Nombre de carpeta raíz
+  const rootName = furipFiles[0]
+    ? (furipFiles[0].path.split('/').filter(p=>p)[0] || '—')
+    : '—';
+  document.getElementById('furipFolderName').textContent = rootName;
+  document.getElementById('furipFileCount').textContent =
+    `${furipFiles.length} archivos en ${facturas.size} factura${facturas.size !== 1 ? 's' : ''}`;
+  info.style.display = 'block';
+
+  fTotal.textContent = facturas.size;
+  heroMsg.textContent = `${facturas.size} factura${facturas.size !== 1 ? 's' : ''} cargada${facturas.size !== 1 ? 's' : ''}`;
+
+  // Vista previa: mostrar primeros 30 renombramientos
+  const rows = [];
+  let shown = 0;
+  for (const [factura, files] of facturas) {
+    for (const fname of files) {
+      if (shown >= 30) break;
+      const dot = fname.lastIndexOf('.');
+      const stem = dot > -1 ? fname.slice(0, dot) : fname;
+      const ext  = dot > -1 ? fname.slice(dot) : '';
+      const newName = `${stem}_${factura}${ext}`;
+      rows.push(`<div class="prev-row">
+        <span class="prev-old" title="${esc(fname)}">${esc(fname)}</span>
+        <span class="prev-arr">→</span>
+        <span class="prev-new">${esc(newName)}</span>
+        <span class="prev-badge">${esc(factura)}</span>
+      </div>`);
+      shown++;
+    }
+    if (shown >= 30) break;
+  }
+  if (furipFiles.length > shown) {
+    rows.push(`<div class="prev-empty" style="padding:.5rem 1rem">… y ${furipFiles.length - shown} archivos más</div>`);
+  }
+  prevList.innerHTML = rows.join('');
+  prevCnt.textContent = `${furipFiles.length} archivos`;
+}
+
+function furipsClear() {
+  furipFiles = [];
+  furipRender();
+  document.getElementById('fOk').textContent  = '0';
+  document.getElementById('fErr').textContent = '0';
+  furipLogUI('Lista limpiada', 'info');
+}
+
+/* ── Descarga ── */
+async function furipDescargar() {
+  if (!furipJobId) { toast('Sin sesión activa', 'error'); return; }
+  const btn = document.getElementById('furipDlBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Preparando...';
+  try {
+    const resp = await fetch(`/download/${furipJobId}`);
+    if (resp.status === 410) { toast('Sesión expirada. Recarga la página.', 'error'); furipJobId = null; furipInitPr = null; return; }
+    if (!resp.ok) throw new Error('ZIP no disponible');
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'FURIPS_Renombrados.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('✅ Descargando FURIPS_Renombrados.zip', 'ok');
+  } catch (e) {
+    toast('Error al descargar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-download"></i> Descargar FURIPS_Renombrados.zip';
+  }
+}
+
+/* ── Finalizar job FURIPS ── */
+async function furipFinalizeJob() {
+  if (furipFinalized) return;
+  furipFinalized = true;
+  if (furipFallbackId) { clearTimeout(furipFallbackId); furipFallbackId = null; }
+  try {
+    const s = await fetch(`/status/${furipJobId}`).then(r => r.json());
+    if (s.expired) { toast('Sesión expirada', 'error'); furipJobId = null; furipInitPr = null; }
+    else if (s.zip_ready) {
+      document.getElementById('furipDlBtn').style.display = 'flex';
+      setStatus('Listo', 'done');
+      try { await furipDescargar(); } catch {}
+    } else if (s.error) {
+      furipLogUI(`Error: ${s.error}`, 'error');
+      toast(`Error: ${s.error}`, 'error');
+      setStatus('Error', '');
+    } else {
+      furipLogUI('Proceso terminó sin generar ZIP', 'warn');
+      setStatus('Error', '');
+    }
+  } catch (e) {
+    furipLogUI('Error verificando estado: ' + e.message, 'error');
+    setStatus('Error', '');
+  } finally {
+    const btn = document.getElementById('furipRunBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP';
+    furipUploading = false;
+    if (furipEvt) { furipEvt.close(); furipEvt = null; }
+  }
+}
+
+/* ── Botón Renombrar FURIPS ── */
+document.getElementById('furipRunBtn').addEventListener('click', async () => {
+  if (!furipFiles.length) { toast('Carga una carpeta primero', 'warn'); return; }
+
+  if (!furipJobId) {
+    toast('Conectando...', 'info');
+    await furipInitJob();
+    if (!furipJobId) { toast('No se pudo conectar. Recarga la página.', 'error'); return; }
+  }
+
+  const btn   = document.getElementById('furipRunBtn');
+  const dlBtn = document.getElementById('furipDlBtn');
+
+  furipFinalized  = false;
+  furipFallbackId = null;
+  btn.disabled    = true;
+  btn.innerHTML   = '<i class="fas fa-spinner fa-pulse"></i> Subiendo...';
+  dlBtn.style.display = 'none';
+  setStatus('Procesando', 'running');
+  document.getElementById('furipLogBox').innerHTML = '';
+  document.getElementById('fOk').textContent  = '0';
+  document.getElementById('fErr').textContent = '0';
+  furipUploading = true;
+
+  // Conectar SSE primero
+  if (furipEvt) furipEvt.close();
+  furipEvt = new EventSource(`/stream/${furipJobId}`);
+  furipEvt.onmessage = async e => {
+    let d; try { d = JSON.parse(e.data); } catch { return; }
+    if (d.ping || d.connected) return;
+    if (d.msg === '__JOB_FINISHED__') { await furipFinalizeJob(); return; }
+    furipLogUI(d.msg, d.tipo);
+    const m = d.msg.match(/Listo:\s*(\d+)\s+archivos/);
+    if (m) document.getElementById('fOk').textContent = m[1];
+    if (d.tipo === 'error') {
+      const el = document.getElementById('fErr');
+      el.textContent = parseInt(el.textContent || '0', 10) + 1;
+    }
+  };
+  furipEvt.onerror = () => console.warn('[FURIPS SSE] reconectando...');
+
+  // Mandar archivos
+  const fd = new FormData();
+  fd.append('job_id', furipJobId);
+  furipFiles.forEach((item, i) => {
+    fd.append(`file_${i}`, item.file, item.file.name);
+    fd.append(`path_${i}`, item.path);
+  });
+
+  try {
+    btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Procesando...';
+    const res  = await fetch('/furips/run', { method: 'POST', body: fd });
+    if (res.status === 410) {
+      furipJobId = null; furipInitPr = null;
+      await furipInitJob();
+      toast('Sesión renovada. Vuelve a intentarlo.', 'info');
+      setStatus('Listo', '');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP';
+      furipUploading = false;
+      if (furipEvt) { furipEvt.close(); furipEvt = null; }
+      return;
+    }
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    if (data.warnings && data.warnings.length) data.warnings.forEach(w => furipLogUI(`⚠ ${w}`, 'warn'));
+    furipUploading = false;
+
+    furipFallbackId = setTimeout(async () => {
+      furipFallbackId = null;
+      if (furipFinalized) return;
+      try {
+        const s = await fetch(`/status/${furipJobId}`).then(r => r.json());
+        if (s.done || s.zip_ready || s.error || s.expired) await furipFinalizeJob();
+      } catch {}
+    }, 45000);
+
+  } catch (err) {
+    furipLogUI(`Error: ${err.message}`, 'error');
+    toast(`Error: ${err.message}`, 'error');
+    setStatus('Error', '');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP';
+    furipUploading = false;
+    if (furipEvt) { furipEvt.close(); furipEvt = null; }
+  }
+});
+
+/* ── Log FURIPS ── */
+function furipLogUI(msg, level = 'info') {
+  const box = document.getElementById('furipLogBox');
+  const cur = box.querySelector('.cursor');
+  if (cur) cur.parentElement.remove();
+  const ts  = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const row = document.createElement('div');
+  row.className = `ll ${level}`;
+  const tsSpan = document.createElement('span'); tsSpan.className = 'ts'; tsSpan.textContent = ts;
+  const lmSpan = document.createElement('span'); lmSpan.className = 'lm'; lmSpan.textContent = msg;
+  row.appendChild(tsSpan); row.appendChild(lmSpan);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+  while (box.children.length > 300) box.removeChild(box.firstChild);
+}
+function furipLimpiarLog() {
+  const box = document.getElementById('furipLogBox');
+  box.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'll info';
+  row.innerHTML = '<span class="ts">--:--:--</span><span class="lm">Log limpiado. <span class="cursor"></span></span>';
+  box.appendChild(row);
+}
+function furipCopiarLog() {
+  const lines = [...document.getElementById('furipLogBox').children].map(l => l.textContent).join('\n');
+  navigator.clipboard.writeText(lines).then(() => toast('Log copiado', 'ok')).catch(() => toast('Error al copiar', 'error'));
+}
+
+window.removeRoot  = removeRoot;
+window.furipsClear = furipsClear;
+window.switchApp   = switchApp;
 </body>
 </html>

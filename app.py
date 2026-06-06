@@ -901,6 +901,237 @@ def server_error(_e):
     return jsonify({"error": "Error interno del servidor"}), 500
 
 
+# ─── FURIPSBot — lógica de renombrado ────────────────────────────────────────
+def _run_furips(job_id: str, items: List[Tuple[str, bytes]]) -> None:
+    """
+    Worker de FURIPSBot.
+    Recibe una carpeta con estructura:
+        <carpeta_raiz>/<numero_factura>/FURIPS1XXXX.ext
+        <carpeta_raiz>/<numero_factura>/FURIPS2XXXX.ext
+    Renombra cada archivo añadiendo _<numero_factura> al final del stem,
+    y los empaqueta todos planos (sin subcarpetas) en un ZIP.
+    """
+    j = _get_job(job_id)
+    if j is None:
+        return
+
+    j["running"]   = True
+    j["done"]      = False
+    j["zip_bytes"] = None
+    j["error"]     = None
+
+    try:
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _job_log(job_id, "─────────────────────────────────", "head")
+        _job_log(job_id, f"FURIPSBot — Inicio: {ts}", "head")
+        _job_log(job_id, f"Archivos recibidos: {len(items)}", "info")
+        _job_log(job_id, "─────────────────────────────────", "head")
+
+        if not items:
+            _job_log(job_id, "Sin archivos para procesar.", "warn")
+            return
+
+        buf = io.BytesIO()
+        ok = 0
+        errors = 0
+        seen_names: set = set()
+
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=ZIP_COMPRESS) as zout:
+            for path, data in sorted(items, key=lambda x: x[0]):
+                # Estructura esperada: raiz/factura/FURIPS1xxx.ext  (3 niveles)
+                # o bien: factura/FURIPS1xxx.ext  (2 niveles, si la raíz fue descartada)
+                parts = [p for p in path.replace("\\", "/").split("/") if p]
+
+                if len(parts) < 2:
+                    _job_log(job_id, f"  ⚠ Ruta inesperada (ignorado): {path[:60]}", "warn")
+                    errors += 1
+                    continue
+
+                filename = parts[-1]          # FURIPS1xxxx.ext
+                factura  = parts[-2]          # número de factura
+
+                # Validar que sea un archivo FURIPS
+                fname_upper = filename.upper()
+                if not (fname_upper.startswith("FURIPS1") or fname_upper.startswith("FURIPS2")):
+                    _job_log(job_id, f"  ⚠ No es FURIPS1/2 (ignorado): {filename[:60]}", "warn")
+                    errors += 1
+                    continue
+
+                # Separar stem y extensión
+                if "." in filename:
+                    dot_idx  = filename.rfind(".")
+                    stem     = filename[:dot_idx]
+                    ext      = filename[dot_idx:]   # incluye el punto
+                else:
+                    stem = filename
+                    ext  = ""
+
+                new_name = f"{stem}_{factura}{ext}"
+
+                # Resolver colisiones de nombre (muy improbable, pero seguro)
+                if new_name in seen_names:
+                    c = 1
+                    base_new = new_name
+                    while new_name in seen_names:
+                        new_name = f"{base_new[:-len(ext)] if ext else base_new}-{c}{ext}"
+                        c += 1
+                    _job_log(job_id, f"  ⚠ Nombre duplicado resuelto: {new_name}", "warn")
+
+                seen_names.add(new_name)
+
+                try:
+                    zout.writestr(new_name, data)
+                    ok += 1
+                    tipo1 = "1" if fname_upper.startswith("FURIPS1") else "2"
+                    _job_log(job_id, f"  ✓ FURIPS{tipo1} → {new_name}", "ok")
+                except Exception as exc:
+                    _job_log(job_id, f"  ✗ {new_name}: {exc}", "error")
+                    errors += 1
+
+        buf.seek(0)
+        j["zip_bytes"] = buf.getvalue()
+
+        # Subida a B2 (no bloqueante si falla)
+        client = _get_b2_client()
+        if client:
+            ts2      = datetime.now().strftime("%Y%m%d_%H%M%S")
+            zip_name = f"FURIPS_{ts2}_{job_id[:6]}.zip"
+            try:
+                client.put_object(
+                    Bucket=B2_BUCKET_NAME,
+                    Key=zip_name,
+                    Body=j["zip_bytes"],
+                    ContentType="application/zip",
+                )
+                _job_log(job_id, f"  ↑ Subido a Backblaze: {zip_name}", "ok")
+            except (ClientError, BotoCoreError) as exc:
+                _job_log(job_id, f"  ⚠ Backblaze: {exc}", "warn")
+            except Exception as exc:
+                log.exception("Error subiendo FURIPS a B2")
+                _job_log(job_id, f"  ⚠ Backblaze (inesperado): {exc}", "warn")
+
+        _job_log(job_id, "─────────────────────────────────", "head")
+        _job_log(job_id, f"Listo: {ok} archivos renombrados, {errors} errores", "head")
+
+    except Exception as exc:
+        log.exception("Error fatal en _run_furips")
+        j["error"] = str(exc)
+        _job_log(job_id, f"ERROR fatal: {exc}", "error")
+    finally:
+        j["done"]    = True
+        j["running"] = False
+        _job_log(job_id, "__JOB_FINISHED__", "system")
+
+
+def _collect_furips(uploaded_files, job_id: str = "") -> Tuple[List[Tuple[str, bytes]], List[str]]:
+    """
+    Procesa archivos para FURIPSBot.
+    Acepta:
+      - Carpeta directa con subcarpetas de facturas (via webkitdirectory)
+      - Un ZIP que contiene la estructura de carpetas
+    Devuelve (items, warnings) donde items = [(ruta_relativa, bytes)].
+    """
+    items: List[Tuple[str, bytes]] = []
+    warnings: List[str] = []
+    max_bytes = MAX_UPLOAD_MB * 1024 * 1024
+    seen_indices: set = set()
+
+    for key in uploaded_files:
+        if not key.startswith("file_"):
+            continue
+        idx = key[5:]
+        if not idx.isdigit():
+            continue
+        if idx in seen_indices:
+            continue
+        seen_indices.add(idx)
+
+        fs = uploaded_files[key]
+
+        try:
+            data = fs.read()
+        except Exception as exc:
+            warnings.append(f"{fs.filename}: error de lectura ({exc})")
+            continue
+
+        if len(data) > max_bytes:
+            warnings.append(f"{fs.filename}: excede {MAX_UPLOAD_MB} MB")
+            continue
+
+        fs_name  = (fs.filename or "").strip('"').strip()
+        path_raw = request.form.get(f"path_{idx}", fs_name).strip('"').strip()
+        if len(path_raw) > 4096:
+            path_raw = path_raw[:4096]
+
+        path_norm = _safe_path(path_raw)
+
+        # Si es un ZIP, descomprimirlo y usar su estructura interna
+        if fs_name.lower().endswith(".zip"):
+            try:
+                with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                    for info in zf.infolist():
+                        if info.is_dir():
+                            continue
+                        if info.file_size > MAX_FILE_MB * 1024 * 1024:
+                            warnings.append(f"Archivo interno demasiado grande: {info.filename[:60]}")
+                            continue
+                        inner_path = _safe_path(info.filename)
+                        items.append((inner_path, zf.read(info)))
+            except zipfile.BadZipFile:
+                warnings.append(f"{fs_name}: ZIP inválido")
+            continue
+
+        # Archivo normal (carpeta subida via webkitdirectory)
+        items.append((path_norm, data))
+
+    return items, warnings
+
+
+@app.route("/furips/run", methods=["POST"])
+def furips_run():
+    """Endpoint de procesado para FURIPSBot."""
+    job_id = request.form.get("job_id", "").strip()
+
+    if not _validate_job_id(job_id):
+        return jsonify({"error": "job_id inválido"}), 400
+
+    j = _get_job(job_id)
+    if j is None:
+        return jsonify({"error": "Sesión expirada. Recarga la página.", "expired": True}), 410
+
+    if j["running"]:
+        return jsonify({"error": "Ya hay un proceso activo en esta sesión"}), 409
+
+    j["done"]      = False
+    j["zip_bytes"] = None
+    j["error"]     = None
+
+    while not j["log_queue"].empty():
+        try:
+            j["log_queue"].get_nowait()
+        except queue.Empty:
+            break
+
+    items, warnings = _collect_furips(request.files, job_id)
+    if not items:
+        msg = "No se recibieron archivos válidos"
+        if warnings:
+            msg += ": " + "; ".join(warnings)
+        return jsonify({"error": msg}), 400
+
+    for w in warnings:
+        _job_log(job_id, f"⚠ {w}", "warn")
+
+    threading.Thread(
+        target=_run_furips,
+        args=(job_id, items),
+        daemon=True,
+        name=f"furips-{job_id[:8]}",
+    ).start()
+
+    return jsonify({"ok": True, "warnings": warnings, "total_files": len(items)})
+
+
 # ─── Entrypoint local ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
