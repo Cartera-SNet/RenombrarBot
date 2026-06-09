@@ -503,7 +503,25 @@ def _run_bot(job_id: str, items: List[Tuple[str, bytes]]) -> None:
             _job_log(job_id, "Sin archivos para procesar.", "warn")
             return
 
-        # Detectar colisiones de carpeta raíz
+        # ── Normalizar paths ──────────────────────────────────────────────────
+        # El nombre de factura puede estar en cualquier nivel de la ruta:
+        #   Carpeta directa:        7259802/archivo.pdf          (ya OK por _collect)
+        #   ZIP plano:              668505-34-7259802/archivo.pdf (nivel 1)
+        #   Carpeta con raíz extra: MiLote/668505-34-7259802/a.pdf (nivel 2)
+        #
+        # Solución: recorrer TODOS los segmentos y aplicar _folder_name_from
+        # a cualquiera que tenga el patrón con guiones. El archivo (último) no se toca.
+
+        def _normalize_path(path: str) -> str:
+            parts = [p for p in path.split("/") if p]
+            for i in range(len(parts) - 1):   # nunca tocar el último (es el archivo)
+                if "-" in parts[i]:
+                    parts[i] = _folder_name_from(parts[i])
+            return "/".join(parts)
+
+        items = [(_normalize_path(path), data) for path, data in items]
+
+        # Construir rename_map — solo resuelve colisiones (ya todo normalizado)
         root_count: Dict[str, int] = defaultdict(int)
         for path, _ in items:
             root_count[path.split("/")[0]] += 1
