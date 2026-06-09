@@ -310,28 +310,29 @@ def _unpack_zip_bytes(
     """
     Descomprime un ZIP y produce rutas equivalentes a subir la carpeta directamente.
 
-    Regla: el ZIP puede tener 1, 2 o 3+ niveles de profundidad.
-    En todos los casos la salida es igual que si el usuario hubiera subido
-    la carpeta vía webkitdirectory:
+    Soporta 4 estructuras de ZIP:
 
-      Caso A — archivo suelto (1 nivel):  archivo.pdf
-          → <stem_zip>/archivo.pdf
+      Caso A — archivo suelto en la raíz:
+          archivo.pdf  →  <stem_zip>/archivo.pdf
 
-      Caso B — carpeta/archivo (2 niveles):  668505-34-7259802/archivo.pdf
-          → 668505-34-7259802/archivo.pdf   (sin cambios)
+      Caso B — carpeta/archivo (2 niveles):
+          668505-34-7259802/doc.pdf  →  668505-34-7259802/doc.pdf
 
-      Caso C — lote/carpeta/archivo (3+ niveles):  3208/668505-34-7259802/archivo.pdf
-          → 668505-34-7259802/archivo.pdf   (se elimina la carpeta raíz del lote)
+      Caso C — raíz/carpeta/archivo (3+ niveles):
+          3208/668505-34-7259802/doc.pdf  →  668505-34-7259802/doc.pdf
 
-    Así _run_bot recibe siempre <carpeta_factura>/<archivo> y renombra correctamente.
+      Caso D — ZIP de ZIPs (estructura real del usuario):
+          668505-34-7259802.zip  (ZIP interno con doc.pdf, doc.xml)
+          →  668505-34-7259802/doc.pdf
+          →  668505-34-7259802/doc.xml
+
+    En todos los casos _run_bot recibe <carpeta_factura>/<archivo>
+    y aplica el renombrado → solo queda el número de factura.
     """
     results: List[Tuple[str, bytes]] = []
     max_file_bytes = MAX_FILE_MB * 1024 * 1024
 
-    # stem del ZIP (para Caso A)
-    zip_stem = zip_filename
-    if zip_stem.lower().endswith(".zip"):
-        zip_stem = zip_stem[:-4]
+    zip_stem = zip_filename[:-4] if zip_filename.lower().endswith(".zip") else zip_filename
 
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
@@ -358,23 +359,48 @@ def _unpack_zip_bytes(
                 except UnicodeDecodeError:
                     raw_name = info.filename.encode("cp437").decode("latin-1")
 
-                raw   = _safe_path(raw_name)
+                raw  = _safe_path(raw_name)
+                name = raw.split("/")[-1] if "/" in raw else raw
+
+                # ── CASO D: entrada es un ZIP interno → descomprimir recursivamente
+                if name.lower().endswith(".zip"):
+                    try:
+                        inner_data = zf.read(info)
+                        inner_zip  = zipfile.ZipFile(io.BytesIO(inner_data))
+                        # Usar el stem del ZIP interno como nombre de carpeta
+                        inner_stem = name[:-4]  # ej: 668505-34-7259802
+                        inner_entries = [e for e in inner_zip.infolist() if not e.is_dir()]
+                        for ie in inner_entries:
+                            if ie.file_size > max_file_bytes:
+                                _job_log(job_id, f"  ⚠ Demasiado grande en ZIP interno: {ie.filename[:50]}", "warn")
+                                continue
+                            try:
+                                ie_name = ie.filename.split("/")[-1] if "/" in ie.filename else ie.filename
+                                results.append((f"{inner_stem}/{ie_name}", inner_zip.read(ie)))
+                            except Exception as exc:
+                                _job_log(job_id, f"  ✗ Lectura ZIP interno ({ie.filename[:40]}): {exc}", "error")
+                    except zipfile.BadZipFile:
+                        # No era un ZIP real, tratarlo como archivo normal
+                        _job_log(job_id, f"  ⚠ {name}: no es un ZIP válido, ignorado", "warn")
+                    except Exception as exc:
+                        _job_log(job_id, f"  ✗ Error en ZIP interno {name}: {exc}", "error")
+                    continue  # ← siguiente entrada del ZIP externo
+
+                # ── Casos A / B / C: archivo normal ──────────────────────────
                 parts = [p for p in raw.split("/") if p]
                 if not parts:
                     continue
 
-                # ── Normalizar profundidad ────────────────────────────────────
                 if len(parts) == 1:
-                    # Caso A: archivo suelto → prefijamos con stem del ZIP
+                    # Caso A: archivo suelto
                     final_parts = [zip_stem, parts[0]]
                 elif len(parts) == 2:
-                    # Caso B: ya tiene la forma correcta carpeta/archivo
+                    # Caso B: ya correcto
                     final_parts = parts
                 else:
-                    # Caso C: 3+ niveles → eliminar la carpeta raíz (el lote)
+                    # Caso C: eliminar carpeta raíz
                     final_parts = parts[1:]
 
-                # Filtrar segmentos junk intermedios (nunca el archivo final)
                 middle  = [p for p in final_parts[:-1] if not _is_junk_segment(p)]
                 cleaned = middle + [final_parts[-1]]
                 if not cleaned:
