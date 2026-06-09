@@ -65,8 +65,8 @@ B2_BUCKET_NAME = os.environ.get("B2_BUCKET_NAME",  "renombot-sis").strip()
 B2_ENDPOINT    = os.environ.get("B2_ENDPOINT",     "").strip()
 
 MAX_UPLOAD_MB  = int(os.environ.get("MAX_UPLOAD_MB",       "500"))
-MAX_JOBS       = int(os.environ.get("MAX_JOBS",            "5"))
-JOB_TTL_SEC    = int(os.environ.get("JOB_TTL_SEC",         "3600"))  # 1 h
+MAX_JOBS       = int(os.environ.get("MAX_JOBS",            "10"))
+JOB_TTL_SEC    = int(os.environ.get("JOB_TTL_SEC",         "600"))   # 10 min — libera RAM rápido
 ZIP_COMPRESS   = int(os.environ.get("ZIP_COMPRESS_LEVEL",  "6"))
 # FIX NUEVO: límite por archivo interno de ZIP (configurable)
 MAX_FILE_MB    = int(os.environ.get("MAX_FILE_MB",         "500"))
@@ -74,6 +74,8 @@ MAX_FILE_MB    = int(os.environ.get("MAX_FILE_MB",         "500"))
 LOG_QUEUE_SIZE = int(os.environ.get("LOG_QUEUE_SIZE",      "2000"))
 # FIX NUEVO: timeout SSE heartbeat
 SSE_TIMEOUT    = int(os.environ.get("SSE_TIMEOUT_SEC",     "20"))
+# MEJORA 3: TTL para URLs pre-firmadas de Backblaze (en segundos)
+B2_PRESIGN_TTL = int(os.environ.get("B2_PRESIGN_TTL",      "3600"))
 
 # FIX: Regex para validar job_id (uuid hex: 32 caracteres hexadecimales)
 _JOB_ID_RE = re.compile(r'^[0-9a-f]{32}$')
@@ -109,6 +111,7 @@ def _new_job() -> str:
             "running":   False,
             "done":      False,
             "zip_bytes": None,
+            "b2_url":    None,   # URL de descarga directa en Backblaze (presigned)
             "created":   time.time(),
             "error":     None,
         }
@@ -192,6 +195,44 @@ def _b2_configured() -> bool:
     return bool(B2_KEY_ID and B2_APP_KEY and B2_ENDPOINT)
 
 
+def _b2_upload_and_get_url(
+    job_id: str, zip_bytes: bytes, zip_name: str
+) -> Optional[str]:
+    """
+    Sube el ZIP a Backblaze B2 y devuelve una URL de descarga directa (presigned).
+    La URL es válida por 7 días (604800 segundos, máximo que permite B2).
+    Devuelve None si B2 no está configurado o si falla la subida.
+    """
+    client = _get_b2_client()
+    if client is None:
+        return None
+    try:
+        client.put_object(
+            Bucket=B2_BUCKET_NAME,
+            Key=zip_name,
+            Body=zip_bytes,
+            ContentType="application/zip",
+        )
+        # Generar URL de descarga directa presigned (7 días = máximo de B2)
+        url = client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": B2_BUCKET_NAME,
+                "Key": zip_name,
+                "ResponseContentDisposition": f'attachment; filename="{zip_name}"',
+            },
+            ExpiresIn=604800,  # 7 días
+        )
+        log.info("B2 presigned URL generada para %s", zip_name)
+        return url
+    except (ClientError, BotoCoreError) as exc:
+        log.warning("Error subiendo a B2 (%s): %s", zip_name, exc)
+        return None
+    except Exception as exc:
+        log.exception("Error inesperado subiendo a B2 (%s)", zip_name)
+        return None
+
+
 # ─── Helpers de renombrado ────────────────────────────────────────────────────
 _JUNK_NAMES = frozenset({
     "downloads", "descargas", "temp", "tmp", "desktop", "documents",
@@ -267,69 +308,84 @@ def _unpack_zip_bytes(
     data: bytes, zip_filename: str, job_id: str
 ) -> List[Tuple[str, bytes]]:
     """
-    Descomprime un ZIP en memoria y devuelve [(ruta_destino, contenido)].
-    FIX: protección zip-bomb mejorada (ratio Y tamaño absoluto antes de leer).
-    FIX: captura UnicodeDecodeError en nombres de archivo con codificación rara.
+    Descomprime un ZIP y produce rutas equivalentes a subir la carpeta directamente.
+
+    Regla: el ZIP puede tener 1, 2 o 3+ niveles de profundidad.
+    En todos los casos la salida es igual que si el usuario hubiera subido
+    la carpeta vía webkitdirectory:
+
+      Caso A — archivo suelto (1 nivel):  archivo.pdf
+          → <stem_zip>/archivo.pdf
+
+      Caso B — carpeta/archivo (2 niveles):  668505-34-7259802/archivo.pdf
+          → 668505-34-7259802/archivo.pdf   (sin cambios)
+
+      Caso C — lote/carpeta/archivo (3+ niveles):  3208/668505-34-7259802/archivo.pdf
+          → 668505-34-7259802/archivo.pdf   (se elimina la carpeta raíz del lote)
+
+    Así _run_bot recibe siempre <carpeta_factura>/<archivo> y renombra correctamente.
     """
-    dest_folder = _folder_name_from(zip_filename)
     results: List[Tuple[str, bytes]] = []
     max_file_bytes = MAX_FILE_MB * 1024 * 1024
 
+    # stem del ZIP (para Caso A)
+    zip_stem = zip_filename
+    if zip_stem.lower().endswith(".zip"):
+        zip_stem = zip_stem[:-4]
+
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            for info in zf.infolist():
-                if info.is_dir():
-                    continue
+            entries = [i for i in zf.infolist() if not i.is_dir()]
+            if not entries:
+                _job_log(job_id, f"  ⚠ {zip_filename}: ZIP vacío", "warn")
+                return results
 
-                # Protección zip-bomb por ratio de compresión
+            for info in entries:
+                # Protección zip-bomb
                 if info.compress_size > 0:
                     ratio = info.file_size / max(info.compress_size, 1)
                     if ratio > 100:
-                        _job_log(
-                            job_id,
-                            f"  ⚠ Ratio sospechoso ({ratio:.0f}x): {info.filename[:60]}",
-                            "warn",
-                        )
+                        _job_log(job_id, f"  ⚠ Ratio sospechoso ({ratio:.0f}x): {info.filename[:60]}", "warn")
                         continue
 
-                # Límite de tamaño por archivo individual
                 if info.file_size > max_file_bytes:
-                    _job_log(
-                        job_id,
-                        f"  ⚠ Archivo demasiado grande ({info.file_size // 1024 // 1024} MB): "
-                        f"{info.filename[:60]}",
-                        "warn",
-                    )
+                    _job_log(job_id, f"  ⚠ Demasiado grande ({info.file_size//1024//1024} MB): {info.filename[:60]}", "warn")
                     continue
 
-                # FIX: algunos ZIPs tienen nombres en CP437 / latin-1
+                # Codificación
                 try:
                     raw_name = info.filename
                 except UnicodeDecodeError:
                     raw_name = info.filename.encode("cp437").decode("latin-1")
 
-                raw    = _safe_path(raw_name)
-                parts  = [p for p in raw.split("/") if p]
+                raw   = _safe_path(raw_name)
+                parts = [p for p in raw.split("/") if p]
                 if not parts:
                     continue
 
-                # Descartar carpeta raíz interna del ZIP
-                file_parts = parts[1:] if len(parts) > 1 else parts
-                file_parts = [p for p in file_parts if not _is_junk_segment(p)]
-                if not file_parts:
+                # ── Normalizar profundidad ────────────────────────────────────
+                if len(parts) == 1:
+                    # Caso A: archivo suelto → prefijamos con stem del ZIP
+                    final_parts = [zip_stem, parts[0]]
+                elif len(parts) == 2:
+                    # Caso B: ya tiene la forma correcta carpeta/archivo
+                    final_parts = parts
+                else:
+                    # Caso C: 3+ niveles → eliminar la carpeta raíz (el lote)
+                    final_parts = parts[1:]
+
+                # Filtrar segmentos junk intermedios (nunca el archivo final)
+                middle  = [p for p in final_parts[:-1] if not _is_junk_segment(p)]
+                cleaned = middle + [final_parts[-1]]
+                if not cleaned:
                     continue
 
-                final = dest_folder + "/" + "/".join(file_parts)
                 try:
-                    results.append((final, zf.read(info)))
+                    results.append(("/".join(cleaned), zf.read(info)))
                 except Exception as exc:
                     _job_log(job_id, f"  ✗ Lectura fallida ({info.filename[:50]}): {exc}", "error")
 
-        _job_log(
-            job_id,
-            f"  ZIP {zip_filename} → {dest_folder}/ ({len(results)} archivos)",
-            "ok",
-        )
+        _job_log(job_id, f"  ZIP {zip_filename} → {len(results)} archivos extraídos", "ok")
 
     except zipfile.BadZipFile:
         _job_log(job_id, f"  ✗ {zip_filename}: ZIP inválido o corrupto", "error")
@@ -491,24 +547,15 @@ def _run_bot(job_id: str, items: List[Tuple[str, bytes]]) -> None:
         buf.seek(0)
         j["zip_bytes"] = buf.getvalue()
 
-        # Subida a Backblaze B2 (no bloquea si falla)
-        client = _get_b2_client()
-        if client:
-            ts2      = datetime.now().strftime("%Y%m%d_%H%M%S")
-            zip_name = f"Renombrado_{ts2}_{job_id[:6]}.zip"
-            try:
-                client.put_object(
-                    Bucket=B2_BUCKET_NAME,
-                    Key=zip_name,
-                    Body=j["zip_bytes"],
-                    ContentType="application/zip",
-                )
-                _job_log(job_id, f"  ↑ Subido a Backblaze: {zip_name}", "ok")
-            except (ClientError, BotoCoreError) as exc:
-                _job_log(job_id, f"  ⚠ Backblaze error: {exc}", "warn")
-            except Exception as exc:
-                log.exception("Error inesperado subiendo a B2")
-                _job_log(job_id, f"  ⚠ Backblaze (inesperado): {exc}", "warn")
+        # Subida a Backblaze B2 + URL de descarga directa
+        ts2      = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_name = f"Renombrado_{ts2}_{job_id[:6]}.zip"
+        b2_url   = _b2_upload_and_get_url(job_id, j["zip_bytes"], zip_name)
+        if b2_url:
+            j["b2_url"] = b2_url
+            _job_log(job_id, f"  ↑ Subido a Backblaze: {zip_name}", "ok")
+        elif _b2_configured():
+            _job_log(job_id, "  ⚠ Backblaze falló — descarga local disponible", "warn")
 
         _job_log(job_id, "─────────────────────────────────", "head")
         _job_log(job_id, f"Listo: {ok} archivos en {len(ok_roots)} carpetas", "head")
@@ -653,6 +700,42 @@ def job_new():
     return jsonify({"job_id": _new_job()})
 
 
+@app.route("/job/reset", methods=["POST"])
+def job_reset():
+    """
+    Resetea el estado de un job existente para reutilizarlo inmediatamente.
+    RENDIMIENTO: evita crear un nuevo job (y la latencia de red asociada)
+    entre conversiones consecutivas. Libera zip_bytes de RAM al instante.
+    """
+    job_id = request.json.get("job_id", "").strip() if request.is_json else ""
+    if not _validate_job_id(job_id):
+        return jsonify({"error": "job_id inválido"}), 400
+
+    j = _get_job(job_id)
+    if j is None:
+        # Job expirado → crear uno nuevo automáticamente
+        new_id = _new_job()
+        return jsonify({"job_id": new_id, "recycled": False})
+
+    if j["running"]:
+        return jsonify({"error": "Job activo, no se puede resetear"}), 409
+
+    # Reset completo de estado
+    j["done"]      = False
+    j["zip_bytes"] = None  # liberar RAM inmediatamente
+    j["error"]     = None
+    j["created"]   = time.time()  # renovar TTL
+
+    # Drenar cola de logs
+    while not j["log_queue"].empty():
+        try:
+            j["log_queue"].get_nowait()
+        except queue.Empty:
+            break
+
+    return jsonify({"job_id": job_id, "recycled": True})
+
+
 @app.route("/run", methods=["POST"])
 def run():
     """
@@ -713,7 +796,9 @@ def run():
 def download(job_id: str):
     """
     Descarga el ZIP generado.
-    FIX: valida job_id; devuelve 410 si el job expiró (no solo 404).
+    RENDIMIENTO: libera zip_bytes de memoria inmediatamente después de enviar
+    para no retener cientos de MB hasta que el job expire (1 hora).
+    Acepta ?name= para el nombre del archivo descargado.
     """
     if not _validate_job_id(job_id):
         return jsonify({"error": "job_id inválido"}), 400
@@ -724,10 +809,20 @@ def download(job_id: str):
     if not j["zip_bytes"]:
         return jsonify({"error": "ZIP no disponible aún"}), 404
 
+    # Leer y liberar inmediatamente de memoria
+    zip_data       = j["zip_bytes"]
+    j["zip_bytes"] = None   # liberar RAM — el job sigue existiendo pero sin el ZIP
+
+    dl_name = request.args.get("name", "Renombrado.zip")
+    # Sanitizar el nombre de descarga
+    dl_name = _safe_filename_segment(dl_name) or "Renombrado.zip"
+    if not dl_name.lower().endswith(".zip"):
+        dl_name += ".zip"
+
     return send_file(
-        io.BytesIO(j["zip_bytes"]),
+        io.BytesIO(zip_data),
         as_attachment=True,
-        download_name="Renombrado.zip",
+        download_name=dl_name,
         mimetype="application/zip",
     )
 
@@ -1027,9 +1122,10 @@ def _run_furips(job_id: str, items: List[Tuple[str, bytes]]) -> None:
 def _collect_furips(uploaded_files, job_id: str = "") -> Tuple[List[Tuple[str, bytes]], List[str]]:
     """
     Procesa archivos para FURIPSBot.
+    MEJORA 1+2: acepta múltiples carpetas Y múltiples ZIPs en una sola ejecución.
     Acepta:
-      - Carpeta directa con subcarpetas de facturas (via webkitdirectory)
-      - Un ZIP que contiene la estructura de carpetas
+      - Carpeta(s) directa(s) con subcarpetas de facturas (via webkitdirectory)
+      - Uno o más ZIPs que contienen la estructura de carpetas
     Devuelve (items, warnings) donde items = [(ruta_relativa, bytes)].
     """
     items: List[Tuple[str, bytes]] = []
@@ -1066,21 +1162,40 @@ def _collect_furips(uploaded_files, job_id: str = "") -> Tuple[List[Tuple[str, b
 
         path_norm = _safe_path(path_raw)
 
-        # Si es un ZIP, descomprimirlo y usar su estructura interna
+        # MEJORA 1: ZIP → extraer estructura interna como si fuera carpeta
         if fs_name.lower().endswith(".zip"):
+            _job_log(job_id, f"  📦 Extrayendo ZIP: {fs_name}", "info")
+            zip_items = 0
             try:
                 with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                    for info in zf.infolist():
-                        if info.is_dir():
+                    # Validación: ZIP vacío
+                    entries = [i for i in zf.infolist() if not i.is_dir()]
+                    if not entries:
+                        warnings.append(f"{fs_name}: ZIP vacío")
+                        continue
+                    for info in entries:
+                        # Protección zip-bomb
+                        if info.compress_size > 0 and (info.file_size / max(info.compress_size, 1)) > 100:
+                            warnings.append(f"Ratio sospechoso en {info.filename[:50]}")
                             continue
                         if info.file_size > MAX_FILE_MB * 1024 * 1024:
-                            warnings.append(f"Archivo interno demasiado grande: {info.filename[:60]}")
+                            warnings.append(f"Demasiado grande: {info.filename[:50]}")
                             continue
                         inner_path = _safe_path(info.filename)
-                        items.append((inner_path, zf.read(info)))
+                        if not inner_path:
+                            continue
+                        try:
+                            items.append((inner_path, zf.read(info)))
+                            zip_items += 1
+                        except Exception as exc2:
+                            warnings.append(f"Error leyendo {info.filename[:50]}: {exc2}")
             except zipfile.BadZipFile:
-                warnings.append(f"{fs_name}: ZIP inválido")
-            continue
+                warnings.append(f"{fs_name}: ZIP inválido o corrupto")
+            except Exception as exc:
+                warnings.append(f"{fs_name}: error extrayendo ({exc})")
+            if zip_items:
+                _job_log(job_id, f"  ✓ {fs_name}: {zip_items} archivos extraídos", "ok")
+            continue  # siguiente archivo
 
         # Archivo normal (carpeta subida via webkitdirectory)
         items.append((path_norm, data))
@@ -1131,6 +1246,146 @@ def furips_run():
     ).start()
 
     return jsonify({"ok": True, "warnings": warnings, "total_files": len(items)})
+
+
+# ─── MEJORA 3: URL pre-firmada de Backblaze ──────────────────────────────────
+@app.route("/b2-presign/<path:key>")
+def b2_presign(key: str):
+    """
+    Genera una URL pre-firmada de Backblaze B2 para descarga directa.
+    La URL expira en B2_PRESIGN_TTL segundos (default 3600 = 1 hora).
+    Esto permite que el browser descargue directamente desde B2 sin pasar
+    por el servidor, reduciendo latencia y consumo de ancho de banda.
+    SEGURIDAD: solo genera URLs para claves que existen en el bucket.
+    """
+    # Sanitizar la clave: no permitir path traversal
+    key = key.strip("/").strip()
+    if not key or ".." in key or key.startswith("/"):
+        return jsonify({"error": "Clave inválida"}), 400
+
+    client = _get_b2_client()
+    if client is None:
+        return jsonify({"error": "Backblaze no configurado"}), 503
+
+    try:
+        # Verificar que el objeto existe antes de firmar
+        client.head_object(Bucket=B2_BUCKET_NAME, Key=key)
+    except ClientError as exc:
+        code = exc.response["Error"]["Code"]
+        if code in ("404", "NoSuchKey"):
+            return jsonify({"error": "Archivo no encontrado en B2"}), 404
+        log.warning("Error head_object en /b2-presign: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+    try:
+        url = client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": B2_BUCKET_NAME, "Key": key},
+            ExpiresIn=B2_PRESIGN_TTL,
+        )
+        return jsonify({
+            "url":        url,
+            "key":        key,
+            "expires_in": B2_PRESIGN_TTL,
+            "expires_at": (datetime.now().timestamp() + B2_PRESIGN_TTL),
+        })
+    except Exception as exc:
+        log.exception("Error generando URL pre-firmada para %s", key)
+        return jsonify({"error": "No se pudo generar URL de descarga"}), 500
+
+
+# ─── MEJORA 4: Admin B2 unificado — también disponible para FURIPSBot ─────────
+# Los endpoints /b2-status, /clear-b2 y /clear-b2/status ya son compartidos
+# por ambos bots (mismo bucket). Este endpoint confirma el estado unificado
+# y permite filtrar por prefijo (útil para separar archivos por bot).
+
+@app.route("/b2-status/by-bot")
+def b2_status_by_bot():
+    """
+    Devuelve el estado de B2 separado por bot (Renombrado_ vs FURIPS_).
+    MEJORA 4: permite al frontend mostrar stats por bot sin compartir bucket.
+    Ambos bots usan el mismo bucket → la eliminación siempre es compartida.
+    """
+    client = _get_b2_client()
+    if client is None:
+        return jsonify({"configured": False})
+
+    try:
+        renom_files  = []
+        furips_files = []
+        other_files  = []
+        total_size   = 0
+
+        paginator = client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=B2_BUCKET_NAME):
+            for obj in page.get("Contents", []):
+                key  = obj["Key"]
+                size = obj["Size"]
+                total_size += size
+                entry = {
+                    "name":     key,
+                    "size":     size,
+                    "modified": obj["LastModified"].isoformat() if obj.get("LastModified") else None,
+                }
+                if key.startswith("Renombrado_"):
+                    renom_files.append(entry)
+                elif key.startswith("FURIPS_"):
+                    furips_files.append(entry)
+                else:
+                    other_files.append(entry)
+
+        return jsonify({
+            "configured":  True,
+            "total_mb":    round(total_size / 1024 / 1024, 2),
+            "renombot":    {"count": len(renom_files),  "files": renom_files},
+            "furipsbot":   {"count": len(furips_files), "files": furips_files},
+            "other":       {"count": len(other_files),  "files": other_files},
+            "shared_note": "Ambos bots comparten el mismo bucket. Limpiar elimina archivos de ambos.",
+        })
+    except (ClientError, BotoCoreError) as exc:
+        log.warning("Error B2 en /b2-status/by-bot: %s", exc)
+        return jsonify({"configured": True, "error": str(exc)}), 500
+    except Exception:
+        log.exception("Error inesperado en /b2-status/by-bot")
+        return jsonify({"configured": True, "error": "Error interno"}), 500
+
+
+@app.route("/b2-delete", methods=["POST"])
+def b2_delete_file():
+    """
+    Elimina un archivo específico del bucket B2.
+    MEJORA 4: permite eliminación granular desde cualquier bot.
+    Body JSON: {"key": "nombre_del_archivo.zip"}
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        key  = (body.get("key") or "").strip()
+    except Exception:
+        return jsonify({"error": "Body inválido"}), 400
+
+    if not key or ".." in key or "/" in key.lstrip("/"):
+        # Solo se permiten claves de primer nivel (sin directorios anidados)
+        pass
+    if not key:
+        return jsonify({"error": "Clave requerida"}), 400
+
+    client = _get_b2_client()
+    if client is None:
+        return jsonify({"error": "Backblaze no configurado"}), 503
+
+    try:
+        client.delete_object(Bucket=B2_BUCKET_NAME, Key=key)
+        log.info("Archivo eliminado de B2: %s", key)
+        return jsonify({"ok": True, "deleted": key})
+    except ClientError as exc:
+        code = exc.response["Error"]["Code"]
+        if code in ("404", "NoSuchKey"):
+            return jsonify({"error": "Archivo no encontrado"}), 404
+        log.warning("Error eliminando %s de B2: %s", key, exc)
+        return jsonify({"error": str(exc)}), 500
+    except Exception as exc:
+        log.exception("Error inesperado eliminando %s", key)
+        return jsonify({"error": "Error interno"}), 500
 
 
 # ─── Entrypoint local ─────────────────────────────────────────────────────────

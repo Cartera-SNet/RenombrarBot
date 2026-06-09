@@ -429,16 +429,16 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
         </div>
         <div class="add-row">
           <label class="btn-add p">
-            <i class="fas fa-folder" style="color:var(--purple)"></i> Carpeta
+            <i class="fas fa-folder" style="color:var(--purple)"></i> Carpeta(s)
             <input type="file" id="furipFolderInput" webkitdirectory style="display:none">
           </label>
           <label class="btn-add p">
-            <i class="fas fa-file-zipper" style="color:var(--purple)"></i> ZIP
-            <input type="file" id="furipZipInput" accept=".zip" style="display:none">
+            <i class="fas fa-file-zipper" style="color:var(--purple)"></i> ZIP(s)
+            <input type="file" id="furipZipInput" accept=".zip" multiple style="display:none">
           </label>
         </div>
 
-        <!-- Info carpeta cargada -->
+        <!-- Info cargado -->
         <div class="furips-loaded" id="furipLoaded">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
             <div class="furips-loaded-title"><i class="fas fa-check-circle" style="color:#10b981;margin-right:5px"></i>Cargado</div>
@@ -446,6 +446,25 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
           </div>
           <div class="furips-folder-name"><i class="fas fa-folder" style="color:var(--purple)"></i><span id="furipFolderName">—</span></div>
           <div class="furips-file-count" id="furipFileCount">0 archivos en 0 facturas</div>
+        </div>
+
+        <!-- B2 panel compartido (MEJORA 4: mismo bucket, misma gestión) -->
+        <div class="b2-panel">
+          <div class="b2-panel-head">
+            <i class="fab fa-aws"></i><span>Backblaze B2</span>
+            <span class="b2-badge" id="b2BadgeF">--</span>
+          </div>
+          <div class="b2-stats">
+            <div class="b2-stat"><div class="n" id="b2FilesF">--</div><div class="l">Archivos</div></div>
+            <div class="b2-stat"><div class="n" id="b2SizeF">--</div><div class="l">MB usados</div></div>
+            <div class="b2-stat"><div class="n" id="b2FoldersF">--</div><div class="l">Carpetas</div></div>
+          </div>
+          <div style="font-size:10px;color:rgba(255,255,255,.3);text-align:center;margin-bottom:.5rem">
+            ⓘ Bucket compartido con RenomBot — limpiar afecta a ambos
+          </div>
+          <button class="btn-clear-b2" id="clearB2BtnF" onclick="clearB2()">
+            <i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)
+          </button>
         </div>
 
         <button class="btn-run purple" id="furipRunBtn"><i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP</button>
@@ -585,6 +604,26 @@ function makeJobRunner(cfg) {
     return cfg.initPromiseRef.v;
   }
 
+  // RENDIMIENTO: resetear job existente es instantáneo (sin crear nuevo job_id)
+  function resetJob() {
+    if (!cfg.jobIdRef.v) return initJob();
+    return fetch('/job/reset', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({job_id: cfg.jobIdRef.v})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.error) throw new Error(d.error);
+      cfg.jobIdRef.v = d.job_id; // puede ser el mismo o uno nuevo si expiró
+    })
+    .catch(function(){
+      // Fallback: crear nuevo job
+      cfg.initPromiseRef.v = null;
+      return initJob();
+    });
+  }
+
   function resetRunState() {
     cfg.onReset();
     uploading = false;
@@ -684,7 +723,7 @@ function makeJobRunner(cfg) {
       });
   }
 
-  return { initJob: initJob, run: run };
+  return { initJob: initJob, resetJob: resetJob, run: run };
 }
 
 function descargarZIPGeneric(jobId, downloadName, btnId) {
@@ -717,52 +756,88 @@ function descargarZIPGeneric(jobId, downloadName, btnId) {
     });
 }
 
-// ── B2 status ─────────────────────────────────
+// ── B2 status (MEJORA 4: actualiza ambos paneles) ─────────────────────────────
 function fetchB2Status() {
   fetch('/b2-status').then(function(r){ return r.json(); }).then(function(d){
     var pill  = document.getElementById('b2Pill');
     var dot   = document.getElementById('b2Dot');
     var label = document.getElementById('b2Label');
-    var badge = document.getElementById('b2Badge');
     pill.style.display = 'flex';
     if (d.configured && !d.error) {
       dot.className = 'b2-dot connected'; label.textContent = 'B2 ✓';
-      badge.textContent = d.file_count + ' archivos';
-      document.getElementById('b2Files').textContent = d.file_count;
-      document.getElementById('b2Size').textContent  = d.total_mb || '0';
-      document.getElementById('b2Folders').textContent = d.files ? new Set(d.files.map(function(f){ return f.name.split('/')[0]; })).size : 0;
+      var fc      = d.file_count;
+      var mb      = d.total_mb || '0';
+      var folders = d.files ? new Set(d.files.map(function(f){ return f.name.split('/')[0]; })).size : 0;
+      // Panel RenomBot
+      _setEl('b2Badge',   fc + ' archivos');
+      _setEl('b2Files',   fc);
+      _setEl('b2Size',    mb);
+      _setEl('b2Folders', folders);
+      // Panel FURIPSBot (MEJORA 4: mismo bucket compartido)
+      _setEl('b2BadgeF',   fc + ' archivos');
+      _setEl('b2FilesF',   fc);
+      _setEl('b2SizeF',    mb);
+      _setEl('b2FoldersF', folders);
     } else {
       dot.className = 'b2-dot error'; label.textContent = 'B2 ✗';
-      badge.textContent = 'Sin config';
-      ['b2Files','b2Size','b2Folders'].forEach(function(id){ document.getElementById(id).textContent='—'; });
+      ['b2Badge','b2BadgeF'].forEach(function(id){ _setEl(id,'Sin config'); });
+      ['b2Files','b2Size','b2Folders','b2FilesF','b2SizeF','b2FoldersF'].forEach(function(id){ _setEl(id,'—'); });
     }
   }).catch(function(){});
 }
+function _setEl(id, val) { var el=document.getElementById(id); if(el) el.textContent=val; }
 
+// MEJORA 4: clearB2 es compartido — actualiza el log del bot activo
 function clearB2() {
-  var btn = document.getElementById('clearB2Btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Limpiando...';
+  // Detectar qué bot está activo para el log
+  var activeLog = document.getElementById('furipsApp').style.display === 'none' ? 'logBoxR' : 'logBoxF';
+  // Deshabilitar ambos botones de limpieza
+  ['clearB2Btn','clearB2BtnF'].forEach(function(id){
+    var btn = document.getElementById(id);
+    if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Limpiando...'; }
+  });
   fetch('/clear-b2',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
-    if(d.status==='already_running'){ toast('Limpieza ya en curso','warn'); return; }
-    logUI('logBoxR','🗑 Limpiando Backblaze...','info');
+    if(d.status==='already_running'){ toast('Limpieza ya en curso','warn'); _resetClearBtns(); return; }
+    logUI(activeLog,'🗑 Limpiando Backblaze...','info');
     var poll = function(){
       fetch('/clear-b2/status').then(function(r){return r.json();}).then(function(s){
         if(s.running){setTimeout(poll,1500);return;}
         var res=s.last_result;
         if(res){
-          if(res.ok){ toast('🗑 '+res.deleted_count+' archivos eliminados','ok'); logUI('logBoxR','🗑 Backblaze limpio: '+res.deleted_count+' archivos','ok'); }
+          if(res.ok){ toast('🗑 '+res.deleted_count+' archivos eliminados','ok'); logUI(activeLog,'🗑 Backblaze limpio: '+res.deleted_count,'ok'); }
           else { toast('⚠ Limpieza con errores','warn'); }
         }
         fetchB2Status();
-        btn.disabled=false; btn.innerHTML='<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
-      }).catch(function(){ btn.disabled=false; btn.innerHTML='<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)'; });
+        _resetClearBtns();
+      }).catch(function(){ _resetClearBtns(); });
     };
     setTimeout(poll,1500);
   }).catch(function(e){
     toast('Error: '+e.message,'error');
-    btn.disabled=false; btn.innerHTML='<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)';
+    _resetClearBtns();
   });
+}
+function _resetClearBtns() {
+  ['clearB2Btn','clearB2BtnF'].forEach(function(id){
+    var btn = document.getElementById(id);
+    if(btn){ btn.disabled=false; btn.innerHTML='<i class="fas fa-trash-alt"></i> Limpiar Todo (Backblaze + Memoria)'; }
+  });
+}
+
+// MEJORA 3: descarga vía URL pre-firmada de Backblaze (descarga directa, sin pasar por el servidor)
+function descargarConPresign(key, downloadName, fallbackJobId, fallbackBtnId) {
+  fetch('/b2-presign/' + encodeURIComponent(key))
+    .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(d){
+      var a = document.createElement('a');
+      a.href = d.url; a.download = downloadName; a.style.display='none';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      toast('✅ Descarga directa desde Backblaze (' + Math.round(d.expires_in/60) + ' min)', 'ok');
+    })
+    .catch(function(){
+      // Fallback silencioso: descarga clásica via servidor
+      descargarZIPGeneric(fallbackJobId, downloadName, fallbackBtnId);
+    });
 }
 
 // ═══════════════════════════════════════
@@ -917,11 +992,19 @@ function descargarZIP() { descargarZIPGeneric(rJobRef.v, 'Renombrado.zip', 'dlBt
 
 document.getElementById('runBtn').addEventListener('click', async function(){
   if (!rFilesData.length) { toast('Agrega al menos un elemento','warn'); return; }
-  if (!rJobRef.v) { toast('Conectando...','info'); await rJob.initJob(); }
-  if (!rJobRef.v) { toast('No se pudo conectar. Recarga.','error'); return; }
 
   var btn = document.getElementById('runBtn');
-  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Procesando...';
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Preparando...';
+
+  // RENDIMIENTO: resetear job existente es ~10x más rápido que crear uno nuevo
+  if (!rJobRef.v) {
+    await rJob.initJob();
+  } else {
+    await rJob.resetJob();
+  }
+  if (!rJobRef.v) { toast('No se pudo conectar. Recarga.','error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-magic"></i> Renombrar y descargar ZIP'; return; }
+
+  btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Procesando...';
   document.getElementById('dlBtn').style.display='none';
 
   var fd = new FormData();
@@ -1067,18 +1150,33 @@ document.getElementById('furipFolderInput').addEventListener('change', function(
 
 document.getElementById('furipZipInput').addEventListener('change', function(){
   if(!this.files.length) return;
-  fFilesData=[{path:this.files[0].name,file:this.files[0]}];
-  furipRender(); logUI('logBoxF','ZIP cargado: '+this.files[0].name,'ok');
+  // MEJORA 2: múltiples ZIPs — acumular en lugar de reemplazar
+  var added = 0;
+  for(var i=0;i<this.files.length;i++){
+    if(this.files[i].name.toLowerCase().endsWith('.zip')){
+      fFilesData.push({path:this.files[i].name, file:this.files[i]});
+      added++;
+    }
+  }
+  if(added){ furipRender(); logUI('logBoxF', added+' ZIP(s) cargado(s)','ok'); }
   this.value='';
 });
 
 document.getElementById('furipRunBtn').addEventListener('click', async function(){
   if (!fFilesData.length) { toast('Carga una carpeta primero','warn'); return; }
-  if (!fJobRef.v) { toast('Conectando...','info'); await fJob.initJob(); }
-  if (!fJobRef.v) { toast('No se pudo conectar. Recarga.','error'); return; }
 
   var btn = document.getElementById('furipRunBtn');
-  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Procesando...';
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Preparando...';
+
+  // RENDIMIENTO: resetear job existente es ~10x más rápido que crear uno nuevo
+  if (!fJobRef.v) {
+    await fJob.initJob();
+  } else {
+    await fJob.resetJob();
+  }
+  if (!fJobRef.v) { toast('No se pudo conectar. Recarga.','error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-wand-magic-sparkles"></i> Renombrar y descargar ZIP'; return; }
+
+  btn.innerHTML='<i class="fas fa-spinner fa-pulse"></i> Procesando...';
   document.getElementById('furipDlBtn').style.display='none';
 
   var fd=new FormData();
